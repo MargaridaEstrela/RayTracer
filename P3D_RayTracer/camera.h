@@ -21,6 +21,8 @@ private:
 
 public:
 	Vector GetEye() { return eye; }
+	Vector GetAt() { return at; }
+	Vector GetUp() { return up; }
 	int GetResX()  { return res_x; }
     int GetResY()  { return res_y; }
 	float GetFov() { return fovy; }
@@ -72,14 +74,15 @@ public:
 
 	Ray PrimaryRay(const Vector& pixel_sample) //  Rays cast from the Eye to a pixel sample which is in Viewport coordinates
 	{
-		Vector ray_dir;
+		Vector w_p = u * (-w / 2) + v * (h / 2);
+		w_p -= ((h / 2) / tan(fovy * 0.5));
+		Vector ray_dir = (u * pixel_sample.x + v * (-1) * pixel_sample.y + w_p).normalize();
 
-		return Ray(eye, ray_dir);  
+		return Ray(eye, ray_dir);
 	}
 
-	Ray PrimaryRay(const Vector& lens_sample, const Vector& pixel_sample) // DOF: Rays cast from  a thin lens sample to a pixel sample
+	Ray PrimaryRay(const Vector& lens_sample, const Vector& pixel_sample) // DOF: Rays cast from a thin lens sample to a pixel sample
 	{
-		
 		Vector ray_dir;
 		Vector eye_offset;
 

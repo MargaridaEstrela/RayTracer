@@ -68,9 +68,10 @@ public:
 
 	Material* GetMaterial() { return m_Material; }
 	void SetMaterial( Material *a_Mat ) { m_Material = a_Mat; }
-	virtual bool intercepts( Ray& r, float& dist ) = 0;
+	virtual bool solveQuadratic(const float& a, const float& b, const float& c, float& x0, float& x1);
+	virtual bool intercepts( Ray& r, float& dist) = 0;
 	virtual Vector getNormal( Vector point ) = 0;
-	virtual AABB GetBoundingBox() { return AABB(); }
+	AABB GetBoundingBox() { return AABB(); }
 	Vector getCentroid(void) { return GetBoundingBox().centroid(); }
 
 protected:
@@ -160,7 +161,8 @@ public:
 	void SetAccelStruct(accelerator accel_t) { accel_struc_type = accel_t; }
 	void SetSamplesPerPixel(unsigned int spp) { samples_per_pixel = spp; }
 
-	int getNumObjects( );
+	vector<Object*> getObjects() { return objects; };
+	int getNumObjects();
 	void addObject( Object* o );
 	Object* getObject( unsigned int index );
 	

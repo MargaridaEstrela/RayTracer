@@ -453,12 +453,101 @@ void setupGLUT(int argc, char* argv[])
 
 /////////////////////////////////////////////////////YOUR CODE HERE///////////////////////////////////////////////////////////////////////////////////////
 
+Ray camGetPrimaryRay(Camera *camera, Vector pixel) {
+	
+	return camera->PrimaryRay(pixel);
+}
+
+/*
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
 	//INSERT HERE YOUR CODE
-	return Color(0.0f, 0.0f, 0.0f);
-}
 
+
+	return Color(0.0f, 0.0f, 0.0f);
+} */
+
+Color rayTracing(Ray ray, int depth)
+{
+	// intersect ray with all objects and find a hit point(if any) closest to the start of the ray
+	int n_objects = scene->getNumObjects();
+	float tnear = INFINITY;
+
+	for (int i = 0; i < n_objects; i++) {
+		Object* object = scene->getObject(i);
+		AABB boundingBox = object->GetBoundingBox();
+		float t = INFINITY;
+
+		if (!boundingBox.intercepts(ray, t)) {
+			return scene->GetBackgroundColor();
+		} else {
+			tnear = t;
+			Vector hitpoint = ray.origin + ray.direction * tnear;
+
+			// compute normal at the hit point;
+			Vector normal = object->getNormal(hitpoint);
+
+			int n_lights = scene->getNumLights();
+			Material* material = object->GetMaterial();
+			Color color = Color(0.0f, 0.0f, 0.0f);
+			
+			for (int j = 0; j < n_lights; j++) {
+				Light* light = scene->getLight(j);
+				Vector L = light->position - hitpoint;
+				L.normalize();
+
+				if (L * normal > 0) {
+					bool shadow_ray = false;
+					if (Accel_Struct == GRID_ACC && grid_ptr != NULL) {
+						shadow_ray = grid_ptr->Traverse(ray);
+					}
+					else if (Accel_Struct == BVH_ACC && bvh_ptr != NULL) {
+						shadow_ray = bvh_ptr->Traverse(ray);
+					}
+					if (!shadow_ray) { //trace shadow ray
+						color = material->GetDiffColor() + material->GetSpecColor();
+					}
+				}
+			}
+			if (depth >= MAX_DEPTH) {
+				return scene->GetBackgroundColor();
+			}
+
+			float m_refl = material->GetReflection();
+			if (m_refl > 0) {
+				// Caculate the ray in the reflected direction
+				Vector rRay_dir = ray.direction - normal * 2 * (ray.direction * normal);
+				Ray rRay(hitpoint, rRay_dir);
+
+				// Reduce rColor by the specular reflection coefficient and add to color
+				Color rColor = rayTracing(rRay, depth + 1);
+				rColor = rColor * (1 - m_refl);
+				color += rColor;
+			}
+
+			float m_t = material->GetTransmittance();
+			if (m_t > 0) {
+				// Calculate the ray in the refracted direction
+				float cosi = - (ray.direction*normal);
+				float etai = 1, etat = material->GetRefrIndex();
+				Vector n = normal;
+				if (cosi < 0) { cosi = -cosi; } else { std::swap(etai, etat); n = n*(-1); }	
+				float eta = etai / etat;
+				float k = 1 - eta * eta * (1 - cosi * cosi);
+
+				Vector tRay_dir = k < 0 ? Vector(0, 0, 0) : n * (eta * cosi - sqrtf(k)) + ray.direction*eta;
+				Ray tRay(hitpoint, tRay_dir);
+
+				// Reduce tColor by transmittance coefficient and add to color
+				Color tColor = rayTracing(tRay, depth + 1);
+				tColor = tColor * (1 - m_t);
+				color += tColor;
+			}
+			return color;
+		}
+	}
+
+}
 
 
 // Render function by primary ray casting from the eye towards the scene's objects
@@ -484,13 +573,14 @@ void renderScene()
 			pixel.x = x + 0.5f;
 			pixel.y = y + 0.5f;
 
-			/*YOUR 2 FUNTIONS:
-			Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
+			//YOUR 2 FUNTIONS:
+			// Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
+			// color = rayTracing(ray, 1, 1.0).clamp();
 
-			color = rayTracing(ray, 1, 1.0).clamp();
-			*/
-
-			color = scene->GetBackgroundColor(); //TO CHANGE - just for the template
+			Ray ray = scene->GetCamera()->PrimaryRay(pixel);
+			color = rayTracing(ray, 1).clamp();
+			
+			//color = scene->GetBackgroundColor(); //TO CHANGE - just for the template
 
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());

@@ -6,24 +6,6 @@
 #include "scene.h"
 #include "macros.h"
 
-bool Object::solveQuadratic(const float& a, const float& b, const float& c, float& x0, float& x1)
-{
-	float discr = b * b - 4 * a * c;
-	if (discr < 0) return false;
-	else if (discr == 0) x0 = x1 = -0.5 * b / a;
-	else {
-		float q = (b > 0) ?
-			-0.5 * (b + sqrt(discr)) :
-			-0.5 * (b - sqrt(discr));
-		x0 = q / a;
-		x1 = c / q;
-	}
-	if (x0 > x1) std::swap(x0, x1);
-
-	return true;
-}
-
-
 Triangle::Triangle(Vector& P0, Vector& P1, Vector& P2)
 {
 	points[0] = P0; points[1] = P1; points[2] = P2;
@@ -57,8 +39,43 @@ Vector Triangle::getNormal(Vector point)
 
 bool Triangle::intercepts(Ray& r, float& t ) {
 
-	//PUT HERE YOUR CODE
-	return (false);
+	Vector P0_P1 = points[1] - points[0];
+	Vector P0_P2 = points[2] - points[0];
+
+	Vector N = P0_P1 % P0_P2;
+	float area = N.length();
+
+	float NdotRayDirection = N * r.direction;
+	if (fabs(NdotRayDirection) < EPSILON) // Almost 0
+		return false; // They are parallel, so they don't intersect!
+
+	float d = - (N * points[0]);
+	t = - (N * r.origin + d) / NdotRayDirection;
+
+	if (t < 0) return false; // The triangle is behind
+
+	Vector P = r.origin + r.direction * t;
+	Vector C; // Vector perpendicular to triangle's plane
+
+	// Edge 0
+	Vector edge0 = points[1] - points[0];
+	Vector vp0 = P - points[0];
+	C = edge0 % vp0;
+	if (N * C < 0) return false; // P is on the right side
+
+	// Edge 1
+	Vector edge1 = points[2] - points[1];
+	Vector vp1 = P - points[1];
+	C = edge1 % vp1;
+	if (N * C < 0) return false; // P is on the right side
+
+	// Edge 2
+	Vector edge2 = points[0] - points[2];
+	Vector vp2 = P - points[2];
+	C = edge2 % vp2;
+	if (N * C < 0) return false; // P is on the right side
+
+	return true; // This ray hits the triangle
 }
 
 Plane::Plane(Vector& a_PN, float a_D)
@@ -70,17 +87,18 @@ Plane::Plane(Vector& P0, Vector& P1, Vector& P2)
    float l;
 
    //Calculate the normal plane: counter-clockwise vectorial product.
-   PN = Vector(0, 0, 0);		
+   Vector a = P2 - P1;
+   Vector b = P0 - P1;
+
+   Vector PN = a % b;
+   PN.normalize();
+
+   D = -(PN * P0);
+   P = P0;
 
    if ((l=PN.length()) == 0.0)
    {
      cerr << "DEGENERATED PLANE!\n";
-   }
-   else
-   {
-     PN.normalize();
-	 //Calculate D
-     D  = 0.0f;
    }
 }
 
@@ -90,8 +108,16 @@ Plane::Plane(Vector& P0, Vector& P1, Vector& P2)
 
 bool Plane::intercepts( Ray& r, float& t )
 {
-	//PUT HERE YOUR CODE
-   return (false);
+	Vector point = P - PN;
+	float tmin = PN * (r.origin - point) / (r.direction * PN);
+
+	if (tmin >= 0) {
+		t = tmin;
+		std::cout << "hit plane" << endl;
+		return true;
+	}
+
+	return false;
 }
 
 Vector Plane::getNormal(Vector point) 
@@ -100,10 +126,42 @@ Vector Plane::getNormal(Vector point)
 }
 
 
-bool Sphere::intercepts(Ray& r, float& t )
+bool Sphere::intercepts(Ray& r, float& t)
 {
-	//PUT HERE YOUR CODE
-  return (false);
+	std::cout << "sphere" << std::endl;
+	float tmin;
+	Vector temp = r.origin - center;
+	float a = r.direction * r.direction;
+	float b = temp * 2.0 * r.direction;
+	float c = temp * temp - radius * radius;
+	float disc = b * b - 4.0 * a * c;
+	std::cout << disc << std::endl;
+
+	if (disc < 0) {
+		return false;
+	}
+	else {
+		float e = sqrt(disc);
+		float denom = 2.0 * a;
+		tmin = (-b - e) / denom;
+
+		if (tmin > 0) {
+			t = tmin;
+			std::cout << "hiy sphere!" << endl;
+			return true;
+		}
+
+		tmin = (b - e) / denom;
+		if (tmin > 0) {
+			t = tmin;
+			std::cout << "hit sphere!" << endl;
+			return true;
+		}
+
+	}
+
+	std::cout << "not hit sphere!" << endl;
+	return false;
 }
 
 
@@ -379,6 +437,7 @@ bool Scene::load_p3f(const char *name)
 	     Vector center;
     	 float radius;
          Sphere* sphere;
+		 
 
 	    file >> center >> radius;
         sphere = new Sphere(center,radius);

@@ -68,7 +68,6 @@ public:
 
 	Material* GetMaterial() { return m_Material; }
 	void SetMaterial( Material *a_Mat ) { m_Material = a_Mat; }
-	virtual bool solveQuadratic(const float& a, const float& b, const float& c, float& x0, float& x1);
 	virtual bool intercepts( Ray& r, float& dist) = 0;
 	virtual Vector getNormal( Vector point ) = 0;
 	AABB GetBoundingBox() { return AABB(); }
@@ -82,12 +81,13 @@ protected:
 class Plane : public Object
 {
 protected:
-  Vector	 PN;
-  float 	 D;
+	Vector P;
+	Vector PN;
+	float D;
 
 public:
-		 Plane		(Vector& PNc, float Dc);
-		 Plane		(Vector& P0, Vector& P1, Vector& P2);
+		 Plane (Vector& PNc, float Dc);
+		 Plane (Vector& P0, Vector& P1, Vector& P2);
 
 		 bool intercepts( Ray& r, float& dist );
          Vector getNormal(Vector point);
@@ -97,7 +97,7 @@ class Triangle : public Object
 {
 	
 public:
-	Triangle	(Vector& P0, Vector& P1, Vector& P2);
+	Triangle (Vector& P0, Vector& P1, Vector& P2);
 	bool intercepts( Ray& r, float& t);
 	Vector getNormal(Vector point);
 	AABB GetBoundingBox(void);

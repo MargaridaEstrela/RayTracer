@@ -458,33 +458,24 @@ Ray camGetPrimaryRay(Camera *camera, Vector pixel) {
 	return camera->PrimaryRay(pixel);
 }
 
-/*
-Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
-{
-	//INSERT HERE YOUR CODE
-
-
-	return Color(0.0f, 0.0f, 0.0f);
-} */
-
 Color rayTracing(Ray ray, int depth)
 {
-	// intersect ray with all objects and find a hit point(if any) closest to the start of the ray
+	// Intersect ray with all objects and find a hit point(if any) closest to the start of the ray
 	int n_objects = scene->getNumObjects();
 	float tnear = INFINITY;
 
 	for (int i = 0; i < n_objects; i++) {
 		Object* object = scene->getObject(i);
-		AABB boundingBox = object->GetBoundingBox();
 		float t = INFINITY;
+		bool hit = object->intercepts(ray, t);
 
-		if (!boundingBox.intercepts(ray, t)) {
+		if (!hit) {
 			return scene->GetBackgroundColor();
 		} else {
 			tnear = t;
 			Vector hitpoint = ray.origin + ray.direction * tnear;
 
-			// compute normal at the hit point;
+			// Compute normal at the hit point;
 			Vector normal = object->getNormal(hitpoint);
 
 			int n_lights = scene->getNumLights();
@@ -504,7 +495,7 @@ Color rayTracing(Ray ray, int depth)
 					else if (Accel_Struct == BVH_ACC && bvh_ptr != NULL) {
 						shadow_ray = bvh_ptr->Traverse(ray);
 					}
-					if (!shadow_ray) { //trace shadow ray
+					if (!shadow_ray) { // Trace shadow ray
 						color = material->GetDiffColor() + material->GetSpecColor();
 					}
 				}
@@ -570,8 +561,8 @@ void renderScene()
 			Color color;
 
 			Vector pixel;  //viewport coordinates
-			pixel.x = x + 0.5f;
-			pixel.y = y + 0.5f;
+			pixel.x = x;
+			pixel.y = y;
 
 			//YOUR 2 FUNTIONS:
 			// Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
@@ -696,6 +687,7 @@ void init_scene(void)
 		grid_ptr = new Grid();
 		vector<Object*> objs;
 		int num_objects = scene->getNumObjects();
+		std::cout << "objs: " << num_objects << std::endl;
 
 		for (int o = 0; o < num_objects; o++) {
 			objs.push_back(scene->getObject(o));
@@ -706,6 +698,7 @@ void init_scene(void)
 	else if (Accel_Struct == BVH_ACC) {
 		vector<Object*> objs;
 		int num_objects = scene->getNumObjects();
+		std::cout << "objs: " << num_objects << std::endl;
 		bvh_ptr = new BVH();
 
 		for (int o = 0; o < num_objects; o++) {

@@ -53,7 +53,7 @@ public:
 
         //Dimensions of the vis window
 	    h = 2 * plane_dist * tan( (PI * angle / 180) / 2.0f );
-        w = ( (float) res_x / res_y ) * h;  
+        w = ( (float) res_x / res_y ) * h; 
 
 		aperture = Aperture_ratio * (w / res_x); //Lens aperture = aperture_ratio * pixel_size
 
@@ -74,23 +74,11 @@ public:
 
 	Ray PrimaryRay(const Vector& pixel_sample) //  Rays cast from the Eye to a pixel sample which is in Viewport coordinates
 	{
-		float d = (eye - at).length();
-		float h = 2 * d * tan(fovy / 2);
-		float w = res_x / res_y * h;
+		float x = w * (pixel_sample.x / res_x - 0.5f);
+		float y = h * (pixel_sample.y / res_y - 0.5f);
 
-
-		Vector z = (eye - at) * 1 / d;
-		Vector x = (up % z) * 1 / (up % z).length();
-		Vector y = z % x;
-
-		z.normalize();
-		x.normalize();
-		y.normalize();
-
-		float d_x = (pixel_sample.x + 0.5f) / res_x - 0.5f;
-		float d_y = (pixel_sample.y + 0.5f) / res_y - 0.5f;
-
-		Vector ray_dir = (x * w * d_x + y * h * d_y - x * d).normalize();
+		Vector ray_dir = (u * x + v * y - n * plane_dist);
+		ray_dir.normalize();
 
 		return Ray(eye, ray_dir);
 	}

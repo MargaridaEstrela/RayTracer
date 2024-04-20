@@ -18,7 +18,6 @@ Triangle::Triangle(Vector& P0, Vector& P1, Vector& P2)
 	Min = Vector(+FLT_MAX, +FLT_MAX, +FLT_MAX);
 	Max = Vector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 
-
 	// enlarge the bounding box a bit just in case...
 	Min -= EPSILON;
 	Max += EPSILON;
@@ -113,7 +112,7 @@ bool Plane::intercepts( Ray& r, float& t )
 
 	if (tmin >= 0) {
 		t = tmin;
-		std::cout << "hit plane" << endl;
+		// std::cout << "hit plane" << endl;
 		return true;
 	}
 
@@ -128,14 +127,12 @@ Vector Plane::getNormal(Vector point)
 
 bool Sphere::intercepts(Ray& r, float& t)
 {
-	std::cout << "sphere" << std::endl;
 	float tmin;
 	Vector temp = r.origin - center;
 	float a = r.direction * r.direction;
 	float b = temp * 2.0 * r.direction;
 	float c = temp * temp - radius * radius;
 	float disc = b * b - 4.0 * a * c;
-	std::cout << disc << std::endl;
 
 	if (disc < 0) {
 		return false;
@@ -147,20 +144,19 @@ bool Sphere::intercepts(Ray& r, float& t)
 
 		if (tmin > 0) {
 			t = tmin;
-			std::cout << "hiy sphere!" << endl;
+			// std::cout << "hiy sphere!" << endl;
 			return true;
 		}
 
 		tmin = (b - e) / denom;
 		if (tmin > 0) {
 			t = tmin;
-			std::cout << "hit sphere!" << endl;
+			// std::cout << "hit sphere!" << endl;
 			return true;
 		}
 
 	}
 
-	std::cout << "not hit sphere!" << endl;
 	return false;
 }
 

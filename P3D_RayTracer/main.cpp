@@ -492,10 +492,12 @@ Color rayTracing(Ray ray, int depth, float ior_1)
 		Vector normal = nearObject->getNormal(hitpoint);
 		bool inside =  normal * ray.direction > 0.0f;
 		normal = inside ? normal * -1.0f : normal;
+
 		Vector v = ray.direction * -1.0f;
 		Vector bias = normal * EPSILON;
 
 		Material* material = nearObject->GetMaterial();
+
 		Color diffColor = material->GetDiffColor();
 		Color specColor = material->GetSpecColor();
 		Color color = Color(0.0f, 0.0f, 0.0f);
@@ -508,7 +510,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)
 			float lightDistance = l.length();
 			l.normalize();
 
-			Color lightColor = Color(0.0f, 0.0f, 0.0f);
+			Color lightColorSum = Color(0.0f, 0.0f, 0.0f);
 
 			if (l * normal > 0.0f) {
 				bool inShadow = false;
@@ -525,6 +527,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)
 
 				if (!inShadow) {
 					Color lightColor = light->color;
+
 					float shine = material->GetShine();
 					float kDiff = material->GetDiffuse();
 					float kSpec = material->GetSpecular();
@@ -538,12 +541,18 @@ Color rayTracing(Ray ray, int depth, float ior_1)
 
 					float NdotH = std::max(normal * halfwayVector, 0.0f);
 
-					Color spec = lightColor * kSpec * specColor * pow(NdotH, shine);
-					lightColor = diff + spec;
+					Color spec = lightColor * kSpec * specColor * pow(NdotH, shine) ;
+
+					if (kSpec > .0f && (normal * halfwayVector) > .0f)
+					{
+						lightColorSum += spec;
+					}
+
+					lightColorSum += diff;
 				}
 			}
 
-			color += lightColor;
+			color += lightColorSum;
 
 		}
 

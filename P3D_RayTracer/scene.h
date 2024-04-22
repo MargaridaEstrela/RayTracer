@@ -70,7 +70,7 @@ public:
 	void SetMaterial( Material *a_Mat ) { m_Material = a_Mat; }
 	virtual bool intercepts( Ray& r, float& dist) = 0;
 	virtual Vector getNormal( Vector point ) = 0;
-	AABB GetBoundingBox() { return AABB(); }
+	virtual AABB GetBoundingBox() { return AABB(); }
 	Vector getCentroid(void) { return GetBoundingBox().centroid(); }
 
 protected:
@@ -86,11 +86,11 @@ protected:
 	float D;
 
 public:
-		 Plane (Vector& PNc, float Dc);
-		 Plane (Vector& P0, Vector& P1, Vector& P2);
+		Plane (Vector& PNc, float Dc);
+		Plane (Vector& P0, Vector& P1, Vector& P2);
 
-		 bool intercepts( Ray& r, float& dist );
-         Vector getNormal(Vector point);
+		bool intercepts( Ray& r, float& dist );
+        Vector getNormal(Vector point);
 };
 
 class Triangle : public Object

@@ -84,21 +84,17 @@ Plane::Plane(Vector& a_PN, float a_D)
 Plane::Plane(Vector& P0, Vector& P1, Vector& P2)
 {
 	float l;
-
    	//Calculate the normal plane: counter-clockwise vectorial product.
-	Vector a = P2 - P1;
-	Vector b = P0 - P1;
+	PN = (P1 - P0) % (P2 - P0);
 
-	Vector PN = a % b;
-	PN.normalize();
-
-	D = -(PN * P0);
-	P = P0;
-
-	if ((l=PN.length()) == 0.0)
+	if ((l = PN.length()) == 0.0)
 	{
 		cerr << "DEGENERATED PLANE!\n";
 	}
+
+	PN.normalize();
+
+	D = -(PN * P0);
 }
 
 //
@@ -107,16 +103,17 @@ Plane::Plane(Vector& P0, Vector& P1, Vector& P2)
 
 bool Plane::intercepts( Ray& r, float& t )
 {
-	Vector point = P - PN;
-	float tmin = PN * (r.origin - point) / (r.direction * PN);
+	//std::cout << "plane" << std::endl;
+	float PNdotRd;
+	PNdotRd = PN * r.direction;
 
-	if (tmin >= 0) {
-		t = tmin;
-		// std::cout << "hit plane" << endl;
-		return true;
+	if (fabs(PNdotRd) < EPSILON){
+		return false;
 	}
+	
+	t = - ((PN * r.origin) + D) / PNdotRd;	
 
-	return false;
+	return (t > 0 ? true : false);
 }
 
 Vector Plane::getNormal(Vector point) 
@@ -167,7 +164,8 @@ Vector Sphere::getNormal( Vector point )
 	return (normal.normalize());
 }
 
-AABB Sphere::GetBoundingBox() {
+AABB Sphere::GetBoundingBox() 
+{
 	Vector a_min;
 	Vector a_max ;
 
@@ -187,7 +185,90 @@ AABB aaBox::GetBoundingBox() {
 
 bool aaBox::intercepts(Ray& ray, float& t)
 {
-	//PUT HERE YOUR CODE
+	double ox = ray.origin.x;
+	double oy = ray.origin.y;
+	double oz = ray.origin.z;
+
+	double dx = ray.direction.x;
+	double dy = ray.direction.y;
+	double dz = ray.direction.z;
+
+	double tx_min, ty_min, tz_min;
+	double tx_max, ty_max, tz_max;
+
+	double a = 1.0f / dx;
+	if (a >= 0) {
+		tx_min = (min.x - ox) * a;
+		tx_max = (max.x - ox) * a;
+	}
+	else {
+		tx_min = (max.x - ox) * a;
+		tx_max = (min.x - ox) * a;
+	}
+
+	double b = 1.0f / dy;
+	if (b >= 0) {
+		ty_min = (min.y - oy) * b;
+		ty_max = (max.y - oy) * b;
+	}
+	else {
+		ty_min = (max.y - oy) * b;
+		ty_max = (min.y - oy) * b;
+	}
+
+	double c = 1.0f / dz;
+	if (c >= 0) {
+		tz_min = (min.z - oz) * c;
+		tz_max = (max.z - oz) * c;
+	}
+	else {
+		tz_min = (max.z - oz) * c;
+		tz_max = (min.z - oz) * c;
+	}
+
+	float tE, tL; 
+	Vector face_in, face_out;
+	if (tx_min > ty_min) {
+		tE = tx_min;
+		face_in = (a >= 0.0) ? Vector(-1, 0, 0) : Vector(1, 0, 0);
+	}
+	else {
+		tE = ty_min;
+		face_in = (b >= 0.0) ? Vector(0, -1, 0) : Vector(0, 1, 0);
+	}
+
+	if (tz_min > tE) {
+		tE = tz_min;
+		face_in = (c >= 0.0) ? Vector(0, 0, -1) : Vector(0, 0, 1);
+	}
+
+	// find smallest tL, leaving t value
+	if (tx_max < ty_max) {
+		tL = tx_max;
+		face_out = (a >= 0.0) ? Vector(1, 0, 0) : Vector(-1, 0, 0);
+	}
+	else {
+		tL = ty_max;
+		face_out = (b >= 0.0) ? Vector(0, 1, 0) : Vector(0, -1, 0);
+	}
+
+	if (tz_max < tL) {
+		tL = tz_max;
+		face_out = (c >= 0.0) ? Vector(0, 0, 1) : Vector(0, 0, -1);
+	}
+
+	if (tE < tL && tL > 0) {
+		if (tE > 0) {
+			t = tE;					// ray hits outside surface
+			Normal = face_in;
+		}
+		else {
+			t = tL;					// ray hits inside surface
+			Normal = face_out;
+		}
+		return (true);
+	}
+
 	return (false);
 }
 

@@ -470,9 +470,12 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	}
 
 	if (hitObject == nullptr) {
-		// if (scene->GetSkyBoxFlg()) return scene->GetSkyboxColor(ray);
-		// else return scene->GetBackgroundColor();
-		return scene->GetBackgroundColor();
+		if (scene->GetSkyBoxFlg()) return scene->GetSkyboxColor(ray);
+		else {
+			float katt = 1.0f;
+			if (depth > 2) katt = 1 / (0.7 * (depth - 1));
+			return scene->GetBackgroundColor() * katt;
+		}
 	}
 
 	Color color = Color(0.0f, 0.0f, 0.0f);
@@ -483,11 +486,11 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	Vector hitPoint = ray.origin + (ray.direction * tClosest);
 	Vector normal = hitObject->getNormal(hitPoint);
-	bool inside =  normal * ray.direction > 0.0f;
 	Vector bias = normal * EPSILON;
 	Vector v = ray.direction * (-1.0f);
+	bool outside =  normal * v > 0.0f;
 
-	if (!inside) {
+	if (outside) {
 		int num_lights = scene->getNumLights();
 
 		for (int j = 0; j < num_lights; j++) {
@@ -520,9 +523,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 					Color diff = (lightColor * diffColor) * kd * NdotL;
 					lightColorSum += diff;
 
-					float k1 = 1.25f;
-					float katt = 1.0f / (k1 * num_lights);
-
 					if (ks > 0.0f) {
 						Vector halfwayVector = (L + v).normalize();
 
@@ -530,6 +530,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 						if (NdotH > 0.0f)
 						{
+							float k1 = 1.25f;
+							float katt = 1.0f / (k1 * num_lights);
 							Color spec = (lightColor * specColor) * ks * pow(NdotH, shine) * katt;
 							lightColorSum += spec;
 						}
@@ -546,38 +548,43 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	float m_refl = material->GetReflection();
 	float m_t = material->GetTransmittance();
-	float ior_2 = inside ? 1.0f : material->GetRefrIndex();
 
-	// Reflection Ray
-	Vector reflectionDir = (normal * (2.0f * (v * normal))) - v;
-	reflectionDir.normalize();
-	Vector reflectionOrigin = inside ? hitPoint + bias : hitPoint - bias;
-	Ray rRay = Ray(reflectionOrigin, reflectionDir);
+	// Refraction - dielectric objects
+	if (m_t > 0.0f) {
+		float ior_2 = outside ? material->GetRefrIndex() : 1.0f;
+		float ior_ratio = ior_1 / ior_2;
 
-	Vector vt = (normal * (v * normal)) - v;
-	float sinI = vt.length(); 
-	float sinT = (ior_1 / ior_2) * sinI;
+		Vector vt = (normal * (v * normal)) - v;
+		float sinI = vt.length(); 
+		float sinT = ior_ratio * sinI;
 
-	if (sinT > 1.0f || m_t == 0.0f) {
-		// total reflection or non-transparent material
-		if (m_refl > 0) color += rayTracing(rRay, depth + 1, ior_1) * specColor * m_refl;
-		
-	} else {
-		// reflective and refractive objects
-		float R0 = pow((ior_1 - ior_2) / (ior_1 + ior_2), 2.0f);
-		float cosI = sqrt(1.0f + pow(sinI, 2.0f));
-		float cosT = sqrt(1.0f - pow(sinT, 2.0f));
-		float cos = inside ? cosT : cosI;
-		float kr = R0 + (1.0f - R0) * pow(1.0f - cos, 5.0f);
+		float total_reflection = sinT * sinT;
 
-		if (m_refl > 0) color += rayTracing(rRay, depth + 1, ior_1) * kr;
+		if (total_reflection <= 1.0f) {
+			vt.normalize();
+			float cosT = sqrt(1.0f - (double)total_reflection);
+			Vector tDir = (vt * ior_ratio) - (normal * cosT);
+			Vector tOrig = outside ? hitPoint - bias : hitPoint + bias;
+			Ray tRay = Ray(tOrig, tDir);
 
-		Vector refractionDir = (vt.normalize() * sinT) - (normal * cosT);
-		refractionDir.normalize();
-		Vector refractionOrigin = inside ? hitPoint + bias : hitPoint - bias;
-		Ray refractedRay = Ray(refractionOrigin, refractionDir);
-		Color refractionColor = rayTracing(refractedRay, depth + 1, ior_2);
-		color += refractionColor * (1.0f - kr);
+			float R0 = pow((ior_1 - ior_2) / (ior_1 + ior_2), 2.0f);
+			float cosI = sqrt(1.0f + pow(sinI, 2.0f));
+
+			float cos = (ior_ratio > 0) ? cosT : cosI;
+			m_refl = R0 + (1.0f - R0) * pow((1.0f - cos), 5.0f);
+			color += rayTracing(tRay, depth + 1, ior_2) * (1 - m_refl) * diffColor;
+		} else 
+			m_refl = 1.0f;	// Total reflection so no refracted ray
+	}
+
+	// Reflection
+	if (m_refl > 0.0f) {
+		Vector rDir = (normal * ((v * normal) * 2.0f)) - v;
+		if (normal * rDir > 0.0f) {
+			Vector rOrig = outside ? hitPoint - bias : hitPoint + bias;
+			Ray rRay = Ray(rOrig, rDir);
+			color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
+		}
 	}
 
 	return color;

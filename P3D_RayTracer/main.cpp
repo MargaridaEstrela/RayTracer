@@ -31,6 +31,9 @@ bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
 #define MAX_DEPTH 4  //number of bounces
 
+unsigned int spp;
+bool antialiasing = true;
+
 #define CAPTION "Whitted Ray-Tracer"
 #define VERTEX_COORD_ATTRIB 0
 #define COLOR_ATTRIB 1
@@ -455,36 +458,63 @@ void setupGLUT(int argc, char* argv[])
 
 Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medium 1 where the ray is travelling
 {
-	float t1, t2, tClosest = FLT_MAX;
+	float t, tClosest = FLT_MAX;
 	Object* hitObject = nullptr;
+	Vector hitPoint;
+	Color color;
+
+	float bck_att = 1.0f;
+	if (depth > 2) bck_att = 1 / (0.7 * (depth - 1));
+
+	bool skybox_flg = scene->GetSkyBoxFlg();
+	accelerator Accel_Struct = scene->GetAccelStruct();
 
 	int num_objects = scene->getNumObjects();
 
-	for (int i = 0; i < num_objects; i++) {
-		if (scene->getObject(i)->intercepts(ray, t1)) {
-			if (t1 < tClosest) {
-				tClosest = t1;
-				hitObject = scene->getObject(i);
+	if(Accel_Struct == GRID_ACC) { // regular Grid
+		if (!grid_ptr->Traverse(ray, &hitObject, hitPoint)) {
+			if (skybox_flg)
+				return scene->GetSkyboxColor(ray);
+			else
+				return (scene->GetBackgroundColor() * bck_att);
+		}
+	}
+
+	else if (Accel_Struct == BVH_ACC) { //BVH
+		if (!bvh_ptr->Traverse(ray, &hitObject, hitPoint)) {
+			if (skybox_flg)
+				return scene->GetSkyboxColor(ray);
+			else
+				return (scene->GetBackgroundColor() * bck_att);
+		}
+	}
+
+	else {
+		for (int i = 0; i < num_objects; i++) {
+			if (scene->getObject(i)->intercepts(ray, t)) {
+				if (t < tClosest) {
+					tClosest = t;
+					hitObject = scene->getObject(i);
+				}
 			}
 		}
 	}
 
+	skybox_flg = false;
+
 	if (hitObject == nullptr) {
-		if (scene->GetSkyBoxFlg()) return scene->GetSkyboxColor(ray);
+		if (skybox_flg)
+			return scene->GetSkyboxColor(ray);
 		else {
-			float katt = 1.0f;
-			if (depth > 2) katt = 1 / (0.7 * (depth - 1));
-			return scene->GetBackgroundColor() * katt;
+			return scene->GetBackgroundColor() * bck_att;
 		}
 	}
-
-	Color color = Color(0.0f, 0.0f, 0.0f);
 
 	Material* material = hitObject->GetMaterial();
 	Color diffColor = material->GetDiffColor();
 	Color specColor = material->GetSpecColor();
 
-	Vector hitPoint = ray.origin + (ray.direction * tClosest);
+	hitPoint = ray.origin + (ray.direction * tClosest);
 	Vector normal = hitObject->getNormal(hitPoint);
 	Vector bias = normal * EPSILON;
 	Vector v = ray.direction * (-1.0f);
@@ -499,8 +529,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			float distance = L.length();
 			L.normalize();
 
-			Color lightColorSum = Color(0.0f, 0.0f, 0.0f);
-			Color lightColor = light->color;
+			Color lightColorSum;
 			bool inShadow = false;
 			float NdotL = normal * L;
 			
@@ -508,19 +537,20 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				Ray shadowRay(hitPoint + bias, L);
 
 				for (int k = 0; k < num_objects; k++) {
-					if (scene->getObject(k)->intercepts(shadowRay, t2)) {
-						if (t2 <= distance) {
+					if (scene->getObject(k)->intercepts(shadowRay, t)) {
+						if (t <= distance) {
 							inShadow = true;
 							break;
 						}
 					}
 				}
+				
 				if (!inShadow) {	
 					float shine = material->GetShine();
 					float kd = material->GetDiffuse();
 					float ks = material->GetSpecular();
 
-					Color diff = (lightColor * diffColor) * kd * NdotL;
+					Color diff = (light->color * diffColor) * kd * NdotL;
 					lightColorSum += diff;
 
 					if (ks > 0.0f) {
@@ -532,7 +562,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 						{
 							float k1 = 1.25f;
 							float katt = 1.0f / (k1 * num_lights);
-							Color spec = (lightColor * specColor) * ks * pow(NdotH, shine) * katt;
+							Color spec = (light->color * specColor) * ks * pow(NdotH, shine) * katt;
 							lightColorSum += spec;
 						}
 					}
@@ -552,6 +582,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	// Refraction - dielectric objects
 	if (m_t > 0.0f) {
 		float ior_2 = outside ? material->GetRefrIndex() : 1.0f;
+		normal = outside ? normal : normal * (-1.0f);
 		float ior_ratio = ior_1 / ior_2;
 
 		Vector vt = (normal * (v * normal)) - v;
@@ -581,7 +612,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	if (m_refl > 0.0f) {
 		Vector rDir = (normal * ((v * normal) * 2.0f)) - v;
 		if (normal * rDir > 0.0f) {
-			Vector rOrig = outside ? hitPoint - bias : hitPoint + bias;
+			Vector rOrig = outside ? hitPoint - bias : hitPoint + bias; // TODO: should be hitPoint + bias
 			Ray rRay = Ray(rOrig, rDir);
 			color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
 		}
@@ -610,14 +641,27 @@ void renderScene()
 			Color color = Color(0.0f, 0.0f, 0.0f);
 
 			Vector pixel;  //viewport coordinates
-			pixel.x = x + 0.5f;
-			pixel.y = y + 0.5f;
+			int n = (int) sqrt(spp);
 
-			//YOUR 2 FUNTIONS:
-			Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
-			color = rayTracing(ray, 1, 1.0).clamp();
-			
-			//color = scene->GetBackgroundColor(); //TO CHANGE - just for the template
+			if (antialiasing && n != 0) {
+				for (int i = 0; i < n; i++) {
+					for (int j = 0; j < n; j++) {
+						float e = rand_float();
+						pixel.x = x + (i + e) / n;
+						pixel.y = y + (j + e) / n;
+
+						Ray ray = scene->GetCamera()->PrimaryRay(pixel);
+						color += rayTracing(ray, 1, 1.0).clamp();
+					}
+				}
+				color *= (float) 1/spp;
+			} else {
+				pixel.x = x + 0.5f;
+				pixel.y = y + 0.5f;
+
+				Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
+				color = rayTracing(ray, 1, 1.0).clamp();
+			}
 
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());
@@ -718,7 +762,6 @@ void init_scene(void)
 		scene->create_random_scene();
 	}
 
-
 	RES_X = scene->GetCamera()->GetResX();
 	RES_Y = scene->GetCamera()->GetResY();
 	printf("\nResolutionX = %d  ResolutionY= %d.\n", RES_X, RES_Y);
@@ -756,7 +799,7 @@ void init_scene(void)
 	else
 		printf("No acceleration data structure.\n\n");
 
-	unsigned int spp = scene->GetSamplesPerPixel();
+	spp = scene->GetSamplesPerPixel();
 	if (spp == 0)
 		printf("Whitted Ray-Tracing\n");
 	else

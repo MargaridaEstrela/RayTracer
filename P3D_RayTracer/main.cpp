@@ -528,6 +528,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			float distance = L.length();
 			L.normalize();
 
+			Color lightColor = light->color;
 			Color lightColorSum;
 			bool inShadow = false;
 			float NdotL = normal * L;
@@ -549,7 +550,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 					float kd = material->GetDiffuse();
 					float ks = material->GetSpecular();
 
-					Color diff = (light->color * diffColor) * kd * NdotL;
+					Color diff = (lightColor * diffColor) * kd * NdotL;
 					lightColorSum += diff;
 
 					if (ks > 0.0f) {
@@ -561,7 +562,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 						{
 							float k1 = 1.25f;
 							float katt = 1.0f / (k1 * num_lights);
-							Color spec = (light->color * specColor) * ks * pow(NdotH, shine) * katt;
+							Color spec = (lightColor * specColor) * ks * pow(NdotH, shine) * katt;
 							lightColorSum += spec;
 						}
 					}
@@ -599,7 +600,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			Ray tRay = Ray(tOrig, tDir.normalize());
 
 			float R0 = pow((ior_1 - ior_2) / (ior_1 + ior_2), 2.0f);
-			std::cout << R0 << std::endl;
 			float cosI = sqrt(1.0f + pow(sinI, 2.0f));
 
 			float cos = (ior_ratio > 0) ? cosT : cosI;

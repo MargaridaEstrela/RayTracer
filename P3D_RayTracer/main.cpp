@@ -32,7 +32,8 @@ bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 #define MAX_DEPTH 4  //number of bounces
 
 unsigned int spp;
-bool antialiasing = true;
+bool antialiasing = false;
+bool fuzzy_reflections = false;
 
 #define CAPTION "Whitted Ray-Tracer"
 #define VERTEX_COORD_ATTRIB 0
@@ -370,7 +371,6 @@ void processMouseButtons(int button, int state, int xx, int yy)
 
 void processMouseMotion(int xx, int yy)
 {
-
 	int deltaX, deltaY;
 	float alphaAux, betaAux;
 	float rAux;
@@ -380,8 +380,6 @@ void processMouseMotion(int xx, int yy)
 
 	// left mouse button: move camera
 	if (tracking == 1) {
-
-
 		alphaAux = alpha + deltaX;
 		betaAux = beta + deltaY;
 
@@ -480,7 +478,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		}
 	}
 
-	else if (Accel_Struct == BVH_ACC) { //BVH
+	else if (Accel_Struct == BVH_ACC) { // BVH
 		if (!bvh_ptr->Traverse(ray, &hitObject, hitPoint)) {
 			if (skybox_flg)
 				return scene->GetSkyboxColor(ray);
@@ -518,7 +516,8 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	Vector normal = hitObject->getNormal(hitPoint);
 	Vector bias = normal * EPSILON;
 	Vector v = ray.direction * (-1.0f);
-	bool outside =  normal * v > 0.0f;
+
+	bool outside =  v * normal > 0.0f;
 
 	if (outside) {
 		int num_lights = scene->getNumLights();
@@ -573,7 +572,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			}
 		}
 	}
-	
+
 	if (depth >= MAX_DEPTH) return color;
 
 	float m_refl = material->GetReflection();
@@ -582,8 +581,9 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	// Refraction - dielectric objects
 	if (m_t > 0.0f) {
 		float ior_2 = outside ? material->GetRefrIndex() : 1.0f;
-		normal = outside ? normal : normal * (-1.0f);
 		float ior_ratio = ior_1 / ior_2;
+
+		normal = outside ? normal : normal * (-1.0f);
 
 		Vector vt = (normal * (v * normal)) - v;
 		float sinI = vt.length(); 
@@ -593,31 +593,38 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 		if (total_reflection <= 1.0f) {
 			vt.normalize();
-			float cosT = sqrt(1.0f - (double)total_reflection);
+			float cosT = sqrt(1.0f - total_reflection);
 			Vector tDir = (vt * ior_ratio) - (normal * cosT);
 			Vector tOrig = outside ? hitPoint - bias : hitPoint + bias;
-			Ray tRay = Ray(tOrig, tDir);
+			Ray tRay = Ray(tOrig, tDir.normalize());
 
 			float R0 = pow((ior_1 - ior_2) / (ior_1 + ior_2), 2.0f);
+			std::cout << R0 << std::endl;
 			float cosI = sqrt(1.0f + pow(sinI, 2.0f));
 
 			float cos = (ior_ratio > 0) ? cosT : cosI;
 			m_refl = R0 + (1.0f - R0) * pow((1.0f - cos), 5.0f);
 			color += rayTracing(tRay, depth + 1, ior_2) * (1 - m_refl) * diffColor;
 		} else 
-			m_refl = 1.0f;	// Total reflection so no refracted ray
+			m_refl = 1.0f;	// Total reflection or non-dielectric material
 	}
 
 	// Reflection
-	if (m_refl > 0.0f) {
-		Vector rDir = (normal * ((v * normal) * 2.0f)) - v;
+	if (m_refl > 0.0f) 
+	{
+		Vector rDir = (normal * ((v * normal) * 2.0f) - v);
+
+		if (fuzzy_reflections) {
+			float roughness = 0.5f;
+			rDir = (rDir + rnd_unit_sphere() * roughness).normalize();
+		}
+
 		if (normal * rDir > 0.0f) {
 			Vector rOrig = outside ? hitPoint - bias : hitPoint + bias; // TODO: should be hitPoint + bias
-			Ray rRay = Ray(rOrig, rDir);
+			Ray rRay = Ray(rOrig, rDir.normalize());
 			color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
 		}
 	}
-
 	return color;
 }
 

@@ -138,40 +138,22 @@ Vector Plane::getNormal(Vector point)
 
 bool Sphere::intercepts(Ray &r, float &t)
 {
-	float tmin;
-	Vector temp = r.origin - center;
-	float a = r.direction * r.direction;
-	float b = temp * 2.0 * r.direction;
+	Vector temp = center - r.origin;
+	float b = temp * r.direction; 
 	float c = temp * temp - radius * radius;
-	float disc = b * b - 4.0 * a * c;
+	float b2_c = pow(b, 2) - c;
 
-	if (disc < 0)
-	{
+	if (b < 0.0f || b2_c < 0) {
 		return false;
-	}
-	else
-	{
-		float e = sqrt(disc);
-		float denom = 2.0 * a;
-		tmin = (-b - e) / denom;
-
-		if (tmin > 0)
-		{
-			t = tmin;
-			// std::cout << "hiy sphere!" << endl;
-			return true;
-		}
-
-		tmin = (b - e) / denom;
-		if (tmin > 0)
-		{
-			t = tmin;
-			// std::cout << "hit sphere!" << endl;
-			return true;
+	} else {
+		if (c > 0.0f) {
+			t = b - sqrt(b2_c);
+		} else {
+			t = b + sqrt(b2_c);
 		}
 	}
 
-	return false;
+	return true;
 }
 
 Vector Sphere::getNormal(Vector point)
@@ -218,7 +200,7 @@ bool aaBox::intercepts(Ray &ray, float &t)
 	double tx_min, ty_min, tz_min;
 	double tx_max, ty_max, tz_max;
 
-	double a = 1.0f / dx;
+	double a = 1.0 / dx;
 	if (a >= 0)
 	{
 		tx_min = (min.x - ox) * a;
@@ -230,7 +212,7 @@ bool aaBox::intercepts(Ray &ray, float &t)
 		tx_max = (min.x - ox) * a;
 	}
 
-	double b = 1.0f / dy;
+	double b = 1.0 / dy;
 	if (b >= 0)
 	{
 		ty_min = (min.y - oy) * b;
@@ -242,7 +224,7 @@ bool aaBox::intercepts(Ray &ray, float &t)
 		ty_max = (min.y - oy) * b;
 	}
 
-	double c = 1.0f / dz;
+	double c = 1.0 / dz;
 	if (c >= 0)
 	{
 		tz_min = (min.z - oz) * c;
@@ -256,50 +238,39 @@ bool aaBox::intercepts(Ray &ray, float &t)
 
 	float tE, tL;
 	Vector face_in, face_out;
-	if (tx_min > ty_min)
-	{
+
+	if (tx_min > ty_min) {
 		tE = tx_min;
 		face_in = (a >= 0.0) ? Vector(-1, 0, 0) : Vector(1, 0, 0);
-	}
-	else
-	{
+	} else {
 		tE = ty_min;
 		face_in = (b >= 0.0) ? Vector(0, -1, 0) : Vector(0, 1, 0);
 	}
 
-	if (tz_min > tE)
-	{
+	if (tz_min > tE) {
 		tE = tz_min;
 		face_in = (c >= 0.0) ? Vector(0, 0, -1) : Vector(0, 0, 1);
 	}
 
 	// find smallest tL, leaving t value
-	if (tx_max < ty_max)
-	{
+	if (tx_max < ty_max) {
 		tL = tx_max;
 		face_out = (a >= 0.0) ? Vector(1, 0, 0) : Vector(-1, 0, 0);
-	}
-	else
-	{
+	} else {
 		tL = ty_max;
 		face_out = (b >= 0.0) ? Vector(0, 1, 0) : Vector(0, -1, 0);
 	}
 
-	if (tz_max < tL)
-	{
+	if (tz_max < tL) {
 		tL = tz_max;
 		face_out = (c >= 0.0) ? Vector(0, 0, 1) : Vector(0, 0, -1);
 	}
 
-	if (tE < tL && tL > 0)
-	{
-		if (tE > 0)
-		{
+	if (tE < tL && tL > 0) {
+		if (tE > 0) {
 			t = tE; // ray hits outside surface
 			Normal = face_in;
-		}
-		else
-		{
+		} else {
 			t = tL; // ray hits inside surface
 			Normal = face_out;
 		}

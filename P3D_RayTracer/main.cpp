@@ -469,7 +469,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	int num_objects = scene->getNumObjects();
 
-	if(Accel_Struct == GRID_ACC) { // regular Grid
+	if(Accel_Struct == GRID_ACC) { // Regular Grid
 		if (!grid_ptr->Traverse(ray, &hitObject, hitPoint)) {
 			if (skybox_flg)
 				return scene->GetSkyboxColor(ray);
@@ -534,13 +534,23 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			float NdotL = normal * L;
 			
 			if (NdotL > 0.0f) {
-				Ray shadowRay(hitPoint + bias, L);
-
-				for (int k = 0; k < num_objects; k++) {
-					if (scene->getObject(k)->intercepts(shadowRay, t)) {
-						if (t <= distance) {
-							inShadow = true;
-							break;
+				if (Accel_Struct == GRID_ACC) {
+					// Regular Grid Acceleration
+					Ray shadowRay(hitPoint + bias, L * distance);
+					inShadow = grid_ptr->Traverse(shadowRay);
+				} else if (Accel_Struct == BVH_ACC) {
+					// BVH Acceleration
+					Ray shadowRay(hitPoint + bias, L * distance);
+					inShadow = bvh_ptr->Traverse(shadowRay);
+				} else {
+					// No Acceleration Structure
+					Ray shadowRay(hitPoint + bias, L);
+					for (int k = 0; k < num_objects; k++) {
+						if (scene->getObject(k)->intercepts(shadowRay, t)) {
+							if (t <= distance) {
+								inShadow = true;
+								break;
+							}
 						}
 					}
 				}
@@ -620,7 +630,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		}
 
 		if (normal * rDir > 0.0f) {
-			Vector rOrig = outside ? hitPoint - bias : hitPoint + bias; // TODO: should be hitPoint + bias
+			Vector rOrig = outside ? hitPoint + bias : hitPoint - bias;
 			Ray rRay = Ray(rOrig, rDir.normalize());
 			color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
 		}

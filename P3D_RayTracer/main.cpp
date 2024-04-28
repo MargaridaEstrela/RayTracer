@@ -465,7 +465,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	bool skyBox_flg = scene->GetSkyBoxFlg();
 	accelerator Accel_Struct = scene->GetAccelStruct();
-	// Accel_Struct = NONE; // TODO: remove this line
 
 	int num_objects = scene->getNumObjects();
 

@@ -139,14 +139,14 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 
 bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 {
-	float tClosest = FLT_MAX, tLeft, tRight; // contains the closest primitive intersection
-	bool hitLeft = false, hitRight = false;
+	float tClosest = FLT_MAX, tLeft, tRight, tmp; // contains the closest primitive intersection
+	bool hitLeft = false, hitRight = false, hit = false;
 	Object *closestObject = NULL;
 
 	BVHNode *currentNode = nodes[0];
 
 	// Check if we hit the world bounding box
-	if (!currentNode->getAABB().intercepts(ray, tLeft))
+	if (!currentNode->getAABB().intercepts(ray, tmp))
 	{
 		return false;
 	}
@@ -180,22 +180,20 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 				currentNode = hitLeft ? leftNode : rightNode;
 				continue;
 			}
-		}
+		} 
 		else
 		{
-			int leftIndex = currentNode->getIndex();
-			for (int i = leftIndex; i < currentNode->getNObjs(); i++)
+			for (int i = currentNode->getIndex(); i < currentNode->getNObjs(); i++)
 			{
-				hitLeft = objects[i]->intercepts(ray, tLeft);
-				if (hitLeft && tLeft < tClosest)
+				if (objects[i]->intercepts(ray, tmp) && tmp < tClosest)
 				{
-					tClosest = tLeft;
-					closestObject = objects[i];
+					tClosest = tmp;
+					*hit_obj = objects[i];
+					hit_point = ray.origin + ray.direction * tClosest;
 				}
 			}
 		}
 
-		bool popped = false;
 		while (!hit_stack.empty())
 		{
 			StackItem item = hit_stack.top();
@@ -204,23 +202,13 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 			if (item.t < tClosest)
 			{
 				currentNode = item.ptr;
-				popped = true;
 				break;
 			}
 		}
 
-		if (hit_stack.empty() && !popped)
+		if (hit_stack.empty())
 		{
-			if (tClosest == FLT_MAX)
-			{
-				return false;
-			}
-			else
-			{
-				*hit_obj = closestObject;
-				hit_point = ray.origin + ray.direction * tClosest;
-				return true;
-			}
+			return (*hit_obj != nullptr);
 		}
 	}
 
@@ -265,8 +253,7 @@ bool BVH::Traverse(Ray &ray) // shadow ray with length
 		}
 		else
 		{
-			int leftIndex = currentNode->getIndex();
-			for (int i = leftIndex; i < currentNode->getNObjs(); i++)
+			for (int i = currentNode->getIndex(); i < currentNode->getNObjs(); i++)
 			{
 				if (objects[i]->intercepts(ray, tmp) && tmp < length)
 				{

@@ -27,7 +27,7 @@
 //Enable OpenGL drawing.  
 bool drawModeEnabled = false;
 
-bool P3F_scene = false; //choose between P3F scene or a built-in random scene
+bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
 #define MAX_DEPTH 4  //number of bounces
 
@@ -536,14 +536,15 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			bool inShadow = false;
 			float NdotL = normal * L;
 			
+			
 			if (NdotL > 0.0f) {
 				if (Accel_Struct == GRID_ACC) {
 					// Uniform Grid Acceleration
-					Ray shadowFeeler(hitPoint + bias, L);
+					Ray shadowFeeler(hitPoint + bias, L * distance);
 					inShadow = grid_ptr->Traverse(shadowFeeler);
 				} else if (Accel_Struct == BVH_ACC) {
 					// BVH Acceleration
-					Ray shadowFeeler(hitPoint + bias, L);
+					Ray shadowFeeler(hitPoint + bias, L * distance);
 					inShadow = bvh_ptr->Traverse(shadowFeeler);
 				} else {
 					// No Acceleration Structure

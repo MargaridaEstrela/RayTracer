@@ -149,7 +149,7 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 {
 	float tClosest = FLT_MAX, tLeft, tRight, tmp; // contains the closest primitive intersection
 	bool hitLeft = false, hitRight = false, hit = false;
-	Object *closestObject = NULL;
+	Object *closestHit = NULL;
 
 	BVHNode *currentNode = nodes[0];
 
@@ -191,13 +191,12 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 		} 
 		else
 		{
-			for (int i = currentNode->getIndex(); i < currentNode->getNObjs(); i++)
+			for (int i = currentNode->getIndex(); i < (currentNode->getIndex() + currentNode->getNObjs()); i++)
 			{
 				if (objects[i]->intercepts(ray, tmp) && tmp < tClosest)
 				{
 					tClosest = tmp;
-					*hit_obj = objects[i];
-					hit_point = ray.origin + ray.direction * tClosest;
+					closestHit = objects[i];
 				}
 			}
 		}
@@ -216,7 +215,13 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 
 		if (hit_stack.empty())
 		{
-			return (*hit_obj != nullptr);
+			if (closestHit != nullptr) {
+				*hit_obj = closestHit;
+				hit_point = ray.origin + ray.direction * tClosest;
+				return true;
+			} else {
+				return false;
+			}
 		}
 	}
 
@@ -225,7 +230,7 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 
 bool BVH::Traverse(Ray &ray) // shadow ray with length
 {
-	float tmp;
+	float tmp = FLT_MAX, tmpL = FLT_MAX, tmpR = FLT_MAX;
 	bool hitLeft = false, hitRight = false;
 	double length = ray.direction.length(); // distance between light and intersection point
 	ray.direction.normalize();
@@ -244,12 +249,12 @@ bool BVH::Traverse(Ray &ray) // shadow ray with length
 			BVHNode *leftNode = nodes[currentNode->getIndex()];
 			BVHNode *rightNode = nodes[currentNode->getIndex() + 1];
 
-			bool hitLeft = leftNode->getAABB().intercepts(ray, tmp);
-			bool hitRight = rightNode->getAABB().intercepts(ray, tmp);
+			bool hitLeft = leftNode->getAABB().intercepts(ray, tmpL);
+			bool hitRight = rightNode->getAABB().intercepts(ray, tmpR);
 
 			if (hitLeft && hitRight)
 			{
-				hit_stack.push(StackItem(rightNode, tmp));
+				hit_stack.push(StackItem(rightNode, tmpR));
 				currentNode = leftNode;
 				continue;
 			}
@@ -261,7 +266,7 @@ bool BVH::Traverse(Ray &ray) // shadow ray with length
 		}
 		else
 		{
-			for (int i = currentNode->getIndex(); i < currentNode->getNObjs(); i++)
+			for (int i = currentNode->getIndex(); i < currentNode->getIndex() + currentNode->getNObjs(); i++)
 			{
 				if (objects[i]->intercepts(ray, tmp) && tmp < length)
 				{

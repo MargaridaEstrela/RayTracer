@@ -25,7 +25,7 @@
 #include "macros.h"
 
 //Enable OpenGL drawing.  
-bool drawModeEnabled = false;
+bool drawModeEnabled = true;
 
 bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
@@ -33,7 +33,9 @@ bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
 unsigned int spp;
 bool antialiasing = false;
+bool soft_shadows = false;
 bool fuzzy_reflections = false;
+bool dof = false;
 
 #define CAPTION "Whitted Ray-Tracer"
 #define VERTEX_COORD_ATTRIB 0
@@ -523,63 +525,86 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		int num_lights = scene->getNumLights();
 
 		for (int j = 0; j < num_lights; j++) {
-			Light* light = scene->getLight(j);
-			Vector L = light->position - hitPoint;
-			float distance = L.length();
-			L.normalize();
-
-			Color lightColor = light->color;
-			Color lightColorSum;
 			bool inShadow = false;
-			float NdotL = normal * L;
-			
-			if (NdotL > 0.0f) {
-				if (Accel_Struct == GRID_ACC) {
-					// Regular Grid Acceleration
-					Ray shadowRay(hitPoint + bias, L * distance);
-					inShadow = grid_ptr->Traverse(shadowRay);
-				} else if (Accel_Struct == BVH_ACC) {
-					// BVH Acceleration
-					Ray shadowRay(hitPoint + bias, L * distance);
-					inShadow = bvh_ptr->Traverse(shadowRay);
+			int lightSamples = 1;
+
+			Vector a, b;
+			if (soft_shadows) {
+				lightSamples = 4;
+				a = Vector(.5, 0, 0);
+				b = Vector(0, .5, 0);
+			}
+
+			for (int s = 0; s < lightSamples; s++) {
+
+				Light* light = scene->getLight(j);
+				Vector L;
+
+				if (soft_shadows) {
+					int areaLightSide = (int)sqrt(lightSamples);
+					int q = s / areaLightSide;
+					int p = s - (q * areaLightSide);
+					Vector randomVector = light->position + a * p * (1.0f / (areaLightSide - 1.0f)) + b * q * (1.0f / (areaLightSide - 1.0f));
+					L = randomVector - hitPoint;
 				} else {
-					// No Acceleration Structure
-					Ray shadowRay(hitPoint + bias, L);
-					for (int k = 0; k < num_objects; k++) {
-						if (scene->getObject(k)->intercepts(shadowRay, t)) {
-							if (t <= distance) {
-								inShadow = true;
-								break;
+					L = light->position - hitPoint;
+				}
+
+				float distance = L.length();
+				L.normalize();
+
+				Color lightColorSum = Color(0.0f, 0.0f, 0.0f);
+				float NdotL = normal * L;
+
+				if (NdotL > 0.0f) {
+					if (Accel_Struct == GRID_ACC) {
+						// Regular Grid Acceleration
+						Ray shadowRay(hitPoint + bias, L * distance);
+						inShadow = grid_ptr->Traverse(shadowRay);
+					} else if (Accel_Struct == BVH_ACC) {
+						// BVH Acceleration
+						Ray shadowRay(hitPoint + bias, L * distance);
+						inShadow = bvh_ptr->Traverse(shadowRay);
+					} else {
+						// No Acceleration Structure
+						Ray shadowRay(hitPoint + bias, L);
+						for (int k = 0; k < num_objects; k++) {
+							if (scene->getObject(k)->intercepts(shadowRay, t)) {
+								if (t <= distance) {
+									inShadow = true;
+									break;
+								}
 							}
 						}
 					}
-				}
-				
-				if (!inShadow) {	
-					float shine = material->GetShine();
-					float kd = material->GetDiffuse();
-					float ks = material->GetSpecular();
 
-					Color diff = (lightColor * diffColor) * kd * NdotL;
-					lightColorSum += diff;
+					if (!inShadow) {	
+						float shine = material->GetShine();
+						float kd = material->GetDiffuse();
+						float ks = material->GetSpecular();
 
-					if (ks > 0.0f) {
-						Vector halfwayVector = (L + v).normalize();
+						Color lightColor = light->color;
 
-						float NdotH = normal * halfwayVector;
+						Color diff = (lightColor * diffColor) * kd * NdotL;
+						lightColorSum += diff;
 
-						if (NdotH > 0.0f)
-						{
-							float k1 = 1.25f;
-							float katt = 1.0f / (k1 * num_lights);
-							Color spec = (lightColor * specColor) * ks * pow(NdotH, shine) * katt;
-							lightColorSum += spec;
+						if (ks > 0.0f) {
+							Vector halfwayVector = (L + v).normalize();
+
+							float NdotH = normal * halfwayVector;
+
+							if (NdotH > 0.0f)
+							{
+								float k1 = 1.25f;
+								float katt = 1.0f / (k1 * num_lights);
+								Color spec = (lightColor * specColor) * ks * pow(NdotH, shine) * katt;
+								lightColorSum += spec;
+							}
 						}
 					}
+
+					color += lightColorSum * (1.0f / lightSamples);
 				}
-
-				color += lightColorSum;
-
 			}
 		}
 	}
@@ -638,6 +663,20 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	return color;
 }
 
+Color dofRayTracing(const Vector& pixel) {
+	Color color = Color(.0f, .0f, .0f);
+
+	for (int i = 0; i < 4; i++) {
+		Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture();
+		
+		Ray ray = scene->GetCamera()->PrimaryRay(lens_sample, pixel);
+		color += rayTracing(ray, 1, 1.0).clamp() * (float)(1.0 / 4);
+		
+	}
+
+	return color;
+}
+
 // Render function by primary ray casting from the eye towards the scene's objects
 
 void renderScene()
@@ -667,17 +706,25 @@ void renderScene()
 						pixel.x = x + (i + e) / n;
 						pixel.y = y + (j + e) / n;
 
-						Ray ray = scene->GetCamera()->PrimaryRay(pixel);
-						color += rayTracing(ray, 1, 1.0).clamp();
+						if (dof && scene->GetCamera()->GetAperture() > 0) {
+							color += dofRayTracing(pixel).clamp();
+						} else {
+							Ray ray = scene->GetCamera()->PrimaryRay(pixel);
+							color += rayTracing(ray, 1, 1.0).clamp();
+						}
 					}
 				}
-				color *= (float) 1/spp;
+				color *= (float) (1/spp);
 			} else {
 				pixel.x = x + 0.5f;
 				pixel.y = y + 0.5f;
 
-				Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
-				color = rayTracing(ray, 1, 1.0).clamp();
+				if (dof && scene->GetCamera()->GetAperture() > 0) {
+					color = dofRayTracing(pixel).clamp();
+				} else {
+					Ray ray = scene->GetCamera()->PrimaryRay(pixel);
+					color = rayTracing(ray, 1, 1.0).clamp();
+				}
 			}
 
 			img_Data[counter++] = u8fromfloat((float)color.r());

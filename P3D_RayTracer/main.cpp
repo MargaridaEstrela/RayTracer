@@ -27,7 +27,7 @@
 //Enable OpenGL drawing.  
 bool drawModeEnabled = false;
 
-bool P3F_scene = true; //choose between P3F scene or a built-in random scene
+bool P3F_scene = false; //choose between P3F scene or a built-in random scene
 
 #define MAX_DEPTH 4  //number of bounces
 
@@ -80,7 +80,6 @@ Scene* scene = NULL;
 
 Grid* grid_ptr = NULL;
 BVH* bvh_ptr = NULL;
-accelerator Accel_Struct = NONE;
 
 int RES_X, RES_Y;
 
@@ -464,29 +463,35 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	float bck_att = 1.0f;
 	if (depth > 2) bck_att = 1 / (0.7 * (depth - 1));
 
-	bool skybox_flg = scene->GetSkyBoxFlg();
+	bool skyBox_flg = scene->GetSkyBoxFlg();
 	accelerator Accel_Struct = scene->GetAccelStruct();
+	// Accel_Struct = NONE; // TODO: remove this line
 
 	int num_objects = scene->getNumObjects();
 
-	if(Accel_Struct == GRID_ACC) { // Regular Grid
+	// Uniform Grid Acceleration
+	if(Accel_Struct == GRID_ACC) {
 		if (!grid_ptr->Traverse(ray, &hitObject, hitPoint)) {
-			if (skybox_flg)
+			if (skyBox_flg) {
 				return scene->GetSkyboxColor(ray);
-			else
+			} else {
 				return (scene->GetBackgroundColor() * bck_att);
+			}
 		}
 	}
 
-	else if (Accel_Struct == BVH_ACC) { // BVH
+	// BHV Acceleration
+	else if (Accel_Struct == BVH_ACC) {
 		if (!bvh_ptr->Traverse(ray, &hitObject, hitPoint)) {
-			if (skybox_flg)
+			if (skyBox_flg) {
 				return scene->GetSkyboxColor(ray);
-			else
+			} else {
 				return (scene->GetBackgroundColor() * bck_att);
+			}
 		}
 	}
 
+	// No Acceleration Structure
 	else {
 		for (int i = 0; i < num_objects; i++) {
 			if (scene->getObject(i)->intercepts(ray, t)) {
@@ -496,15 +501,13 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				}
 			}
 		}
-	}
 
-	skybox_flg = false;
-
-	if (hitObject == nullptr) {
-		if (skybox_flg)
-			return scene->GetSkyboxColor(ray);
-		else {
-			return scene->GetBackgroundColor() * bck_att;
+		if (hitObject == nullptr) {
+			if (skyBox_flg)
+				return scene->GetSkyboxColor(ray);
+			else {
+				return scene->GetBackgroundColor() * bck_att;
+			}
 		}
 	}
 
@@ -535,18 +538,18 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			
 			if (NdotL > 0.0f) {
 				if (Accel_Struct == GRID_ACC) {
-					// Regular Grid Acceleration
-					Ray shadowRay(hitPoint + bias, L * distance);
-					inShadow = grid_ptr->Traverse(shadowRay);
+					// Uniform Grid Acceleration
+					Ray shadowFeeler(hitPoint + bias, L * distance);
+					inShadow = grid_ptr->Traverse(shadowFeeler);
 				} else if (Accel_Struct == BVH_ACC) {
 					// BVH Acceleration
-					Ray shadowRay(hitPoint + bias, L * distance);
-					inShadow = bvh_ptr->Traverse(shadowRay);
+					Ray shadowFeeler(hitPoint + bias, L * distance);
+					inShadow = bvh_ptr->Traverse(shadowFeeler);
 				} else {
 					// No Acceleration Structure
-					Ray shadowRay(hitPoint + bias, L);
+					Ray shadowFeeler(hitPoint + bias, L);
 					for (int k = 0; k < num_objects; k++) {
-						if (scene->getObject(k)->intercepts(shadowRay, t)) {
+						if (scene->getObject(k)->intercepts(shadowFeeler, t)) {
 							if (t <= distance) {
 								inShadow = true;
 								break;
@@ -787,7 +790,7 @@ void init_scene(void)
 	img_Data = (uint8_t*)malloc(3 * RES_X*RES_Y * sizeof(uint8_t));
 	if (img_Data == NULL) exit(1);
 
-	Accel_Struct = scene->GetAccelStruct();   //Type of acceleration data structure
+	accelerator Accel_Struct = scene->GetAccelStruct();   //Type of acceleration data structure
 
 	if (Accel_Struct == GRID_ACC) {
 		grid_ptr = new Grid();

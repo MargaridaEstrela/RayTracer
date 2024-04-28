@@ -468,8 +468,30 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	int num_objects = scene->getNumObjects();
 
+	// No Acceleration Structure
+	if (Accel_Struct == NONE) {
+		for (int i = 0; i < num_objects; i++) {
+			if (scene->getObject(i)->intercepts(ray, t)) {
+				if (t < tClosest) {
+					tClosest = t;
+					hitObject = scene->getObject(i);
+				}
+			}
+		}
+
+		if (hitObject == nullptr) {
+			if (skyBox_flg)
+				return scene->GetSkyboxColor(ray);
+			else {
+				return scene->GetBackgroundColor() * bck_att;
+			}
+		} else {
+			hitPoint = ray.origin + (ray.direction * tClosest);
+		}
+	}
+
 	// Uniform Grid Acceleration
-	if(Accel_Struct == GRID_ACC) {
+	else if(Accel_Struct == GRID_ACC) {
 		if (!grid_ptr->Traverse(ray, &hitObject, hitPoint)) {
 			if (skyBox_flg) {
 				return scene->GetSkyboxColor(ray);
@@ -490,31 +512,10 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		}
 	}
 
-	// No Acceleration Structure
-	else {
-		for (int i = 0; i < num_objects; i++) {
-			if (scene->getObject(i)->intercepts(ray, t)) {
-				if (t < tClosest) {
-					tClosest = t;
-					hitObject = scene->getObject(i);
-				}
-			}
-		}
-
-		if (hitObject == nullptr) {
-			if (skyBox_flg)
-				return scene->GetSkyboxColor(ray);
-			else {
-				return scene->GetBackgroundColor() * bck_att;
-			}
-		}
-	}
-
 	Material* material = hitObject->GetMaterial();
 	Color diffColor = material->GetDiffColor();
 	Color specColor = material->GetSpecColor();
 
-	hitPoint = ray.origin + (ray.direction * tClosest);
 	Vector normal = hitObject->getNormal(hitPoint);
 	Vector bias = normal * EPSILON;
 	Vector v = ray.direction * (-1.0f);
@@ -538,11 +539,11 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			if (NdotL > 0.0f) {
 				if (Accel_Struct == GRID_ACC) {
 					// Uniform Grid Acceleration
-					Ray shadowFeeler(hitPoint + bias, L * distance);
+					Ray shadowFeeler(hitPoint + bias, L);
 					inShadow = grid_ptr->Traverse(shadowFeeler);
 				} else if (Accel_Struct == BVH_ACC) {
 					// BVH Acceleration
-					Ray shadowFeeler(hitPoint + bias, L * distance);
+					Ray shadowFeeler(hitPoint + bias, L);
 					inShadow = bvh_ptr->Traverse(shadowFeeler);
 				} else {
 					// No Acceleration Structure

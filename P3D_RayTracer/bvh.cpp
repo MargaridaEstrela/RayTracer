@@ -86,7 +86,7 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 	}
 
 	float diffX = maxX - minX, diffY = maxY - minY, diffZ = maxZ - minZ;
-	int axis = (diffX > diffY && diffX > diffZ) ? 0 : (diffY > diffZ) ? 1 : 2;
+	int axis = (diffX >= diffY && diffX >= diffZ) ? 0 : (diffY >= diffZ) ? 1 : 2;
 
 	Comparator cmp;
 	cmp.dimension = axis;
@@ -114,11 +114,19 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 		rBox.extend(bbox);
 	}
 
-	lBox.min -= EPSILON;
-	lBox.max += EPSILON;
+	lBox.min.x -= EPSILON;
+	lBox.min.y -= EPSILON;
+	lBox.min.z -= EPSILON;
+	lBox.max.x += EPSILON;
+	lBox.max.y += EPSILON;
+	lBox.max.z += EPSILON;
 
-	rBox.min -= EPSILON;
-	rBox.max += EPSILON;
+	rBox.min.x -= EPSILON;
+	rBox.min.y -= EPSILON;
+	rBox.min.z -= EPSILON;
+	rBox.max.x += EPSILON;
+	rBox.max.y += EPSILON;
+	rBox.max.z += EPSILON;
 
 	// Create two new nodes
 	BVHNode *lNode = new BVHNode();

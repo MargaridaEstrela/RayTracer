@@ -27,7 +27,7 @@
 //Enable OpenGL drawing.  
 bool drawModeEnabled = false;
 
-bool P3F_scene = true; //choose between P3F scene or a built-in random scene
+bool P3F_scene = false; //choose between P3F scene or a built-in random scene
 
 #define MAX_DEPTH 4  //number of bounces
 
@@ -592,6 +592,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	float m_refl = material->GetReflection();
 	float m_t = material->GetTransmittance();
+	float kr;
 
 	// Refraction - dielectric objects
 	if (m_t > 0.0f) {
@@ -608,23 +609,24 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 		if (total_reflection <= 1.0f) {
 			vt.normalize();
-			float cosT = sqrt(1.0f - total_reflection);
-			Vector tDir = (vt * ior_ratio) - (normal * cosT);
+			float cosT = sqrt(1.0f - pow(sinT, 2.0f));
+			Vector tDir = (vt * sinT) - (normal * cosT);
 			Vector tOrig = outside ? hitPoint - bias : hitPoint + bias;
 			Ray tRay = Ray(tOrig, tDir.normalize());
 
 			float R0 = pow((ior_1 - ior_2) / (ior_1 + ior_2), 2.0f);
 			float cosI = sqrt(1.0f + pow(sinI, 2.0f));
 
-			float cos = (ior_ratio > 0) ? cosT : cosI;
-			m_refl = R0 + (1.0f - R0) * pow((1.0f - cos), 5.0f);
-			color += rayTracing(tRay, depth + 1, ior_2) * (1 - m_refl) * diffColor;
-		} else 
-			m_refl = 1.0f;	// Total reflection or non-dielectric material
+			float cos = (ior_1 > ior_2) ? cosT : cosI;
+			kr = R0 + (1.0f - R0) * pow((1.0f - cos), 5.0f);
+			color += rayTracing(tRay, depth + 1, ior_2) * (1 - kr);
+		} else {
+			kr = 1.0f;
+		}
 	}
 
 	// Reflection
-	if (m_refl > 0.0f) 
+	if (m_refl > 0.0f ) 
 	{
 		Vector rDir = (normal * ((v * normal) * 2.0f) - v);
 
@@ -636,7 +638,11 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		if (normal * rDir > 0.0f) {
 			Vector rOrig = outside ? hitPoint + bias : hitPoint - bias;
 			Ray rRay = Ray(rOrig, rDir.normalize());
-			color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
+			if (m_t > 0.0f) {
+				color += rayTracing(rRay, depth + 1, ior_1) * kr * specColor;	
+			} else {
+				color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
+			}
 		}
 	}
 	return color;

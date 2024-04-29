@@ -230,7 +230,7 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 
 bool BVH::Traverse(Ray &ray) // shadow ray with length
 {
-	float tmp = FLT_MAX, tmpL = FLT_MAX, tmpR = FLT_MAX;
+	float tmp;
 	bool hitLeft = false, hitRight = false;
 	double length = ray.direction.length(); // distance between light and intersection point
 	ray.direction.normalize();
@@ -249,12 +249,12 @@ bool BVH::Traverse(Ray &ray) // shadow ray with length
 			BVHNode *leftNode = nodes[currentNode->getIndex()];
 			BVHNode *rightNode = nodes[currentNode->getIndex() + 1];
 
-			bool hitLeft = leftNode->getAABB().intercepts(ray, tmpL);
-			bool hitRight = rightNode->getAABB().intercepts(ray, tmpR);
+			bool hitLeft = leftNode->getAABB().intercepts(ray, tmp);
+			bool hitRight = rightNode->getAABB().intercepts(ray, tmp);
 
 			if (hitLeft && hitRight)
 			{
-				hit_stack.push(StackItem(rightNode, tmpR));
+				hit_stack.push(StackItem(rightNode, tmp));
 				currentNode = leftNode;
 				continue;
 			}

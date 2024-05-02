@@ -639,7 +639,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 			Vector rOrig = outside ? hitPoint + bias : hitPoint - bias;
 			Ray rRay = Ray(rOrig, rDir.normalize());
 			if (m_t > 0.0f) {
-				color += rayTracing(rRay, depth + 1, ior_1) * kr * specColor;	
+				color += rayTracing(rRay, depth + 1, ior_1) * kr;	
 			} else {
 				color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
 			}

@@ -61,31 +61,35 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 	float maxX = -FLT_MAX, maxY = -FLT_MAX, maxZ = -FLT_MAX;
 	float minX = FLT_MAX, minY = FLT_MAX, minZ = FLT_MAX;
 
-	for (int i = left_index; i < right_index; i++)
-	{
-		AABB bbox = objects[i]->GetBoundingBox();
-		Vector centroid = bbox.centroid();
+	int diffX = node->getAABB().max.x - node->getAABB().min.x;
+	int diffY = node->getAABB().max.y - node->getAABB().min.y;
+	int diffZ = node->getAABB().max.z - node->getAABB().min.z;
 
-		if (centroid.x > maxX)
-			maxX = centroid.x;
+	// for (int i = left_index; i < right_index; i++)
+	// {
+	// 	AABB bbox = objects[i]->GetBoundingBox();
+	// 	Vector centroid = bbox.centroid();
 
-		if (centroid.y > maxY)
-			maxY = centroid.y;
+	// 	if (centroid.x > maxX)
+	// 		maxX = centroid.x;
 
-		if (centroid.z > maxZ)
-			maxZ = centroid.z;
+	// 	if (centroid.y > maxY)
+	// 		maxY = centroid.y;
 
-		if (centroid.x < minX)
-			minX = centroid.x;
+	// 	if (centroid.z > maxZ)
+	// 		maxZ = centroid.z;
 
-		if (centroid.y < minY)
-			minY = centroid.y;
+	// 	if (centroid.x < minX)
+	// 		minX = centroid.x;
 
-		if (centroid.z < minZ)
-			minZ = centroid.z;
-	}
+	// 	if (centroid.y < minY)
+	// 		minY = centroid.y;
 
-	float diffX = maxX - minX, diffY = maxY - minY, diffZ = maxZ - minZ;
+	// 	if (centroid.z < minZ)
+	// 		minZ = centroid.z;
+	// }
+
+	// float diffX = maxX - minX, diffY = maxY - minY, diffZ = maxZ - minZ;
 	int axis = (diffX >= diffY && diffX >= diffZ) ? 0 : (diffY >= diffZ) ? 1 : 2;
 
 	Comparator cmp;
@@ -94,7 +98,7 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 
 	// Find the split index
 	int split_index = (left_index + right_index) / 2;
-	
+
 	Vector min = Vector(FLT_MAX, FLT_MAX, FLT_MAX);
 	Vector max = Vector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 
@@ -114,19 +118,11 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 		rBox.extend(bbox);
 	}
 
-	lBox.min.x -= EPSILON;
-	lBox.min.y -= EPSILON;
-	lBox.min.z -= EPSILON;
-	lBox.max.x += EPSILON;
-	lBox.max.y += EPSILON;
-	lBox.max.z += EPSILON;
+	lBox.min.x -= EPSILON, lBox.min.y -= EPSILON, lBox.min.z -= EPSILON;
+	lBox.max.x += EPSILON, lBox.max.y += EPSILON, lBox.max.z += EPSILON;
 
-	rBox.min.x -= EPSILON;
-	rBox.min.y -= EPSILON;
-	rBox.min.z -= EPSILON;
-	rBox.max.x += EPSILON;
-	rBox.max.y += EPSILON;
-	rBox.max.z += EPSILON;
+	rBox.min.x -= EPSILON, rBox.min.y -= EPSILON, rBox.min.z -= EPSILON;
+	rBox.max.x += EPSILON, rBox.max.y += EPSILON, rBox.max.z += EPSILON;
 
 	// Create two new nodes
 	BVHNode *lNode = new BVHNode();
@@ -188,7 +184,7 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 				currentNode = hitLeft ? leftNode : rightNode;
 				continue;
 			}
-		} 
+		}
 		else
 		{
 			for (int i = currentNode->getIndex(); i < (currentNode->getIndex() + currentNode->getNObjs()); i++)
@@ -215,11 +211,14 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 
 		if (hit_stack.empty())
 		{
-			if (closestHit != nullptr) {
+			if (closestHit != nullptr)
+			{
 				*hit_obj = closestHit;
 				hit_point = ray.origin + ray.direction * tClosest;
 				return true;
-			} else {
+			}
+			else
+			{
 				return false;
 			}
 		}
@@ -266,7 +265,7 @@ bool BVH::Traverse(Ray &ray) // shadow ray with length
 		}
 		else
 		{
-			for (int i = currentNode->getIndex(); i < currentNode->getIndex() + currentNode->getNObjs(); i++)
+			for (int i = currentNode->getIndex(); i < (currentNode->getIndex() + currentNode->getNObjs()); i++)
 			{
 				if (objects[i]->intercepts(ray, tmp) && tmp < length)
 				{

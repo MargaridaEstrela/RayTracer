@@ -58,36 +58,11 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 	}
 
 	// Find the largest AABBs extent
-	float maxX = -FLT_MAX, maxY = -FLT_MAX, maxZ = -FLT_MAX;
-	float minX = FLT_MAX, minY = FLT_MAX, minZ = FLT_MAX;
+	AABB node_bbox = node->getAABB();
 
-	int diffX = node->getAABB().max.x - node->getAABB().min.x;
-	int diffY = node->getAABB().max.y - node->getAABB().min.y;
-	int diffZ = node->getAABB().max.z - node->getAABB().min.z;
-
-	// for (int i = left_index; i < right_index; i++)
-	// {
-	// 	AABB bbox = objects[i]->GetBoundingBox();
-	// 	Vector centroid = bbox.centroid();
-
-	// 	if (centroid.x > maxX)
-	// 		maxX = centroid.x;
-
-	// 	if (centroid.y > maxY)
-	// 		maxY = centroid.y;
-
-	// 	if (centroid.z > maxZ)
-	// 		maxZ = centroid.z;
-
-	// 	if (centroid.x < minX)
-	// 		minX = centroid.x;
-
-	// 	if (centroid.y < minY)
-	// 		minY = centroid.y;
-
-	// 	if (centroid.z < minZ)
-	// 		minZ = centroid.z;
-	// }
+	int diffX = node_bbox.max.x - node_bbox.min.x;
+	int diffY = node_bbox.max.y - node_bbox.min.y;
+	int diffZ = node_bbox.max.z - node_bbox.min.z;
 
 	// float diffX = maxX - minX, diffY = maxY - minY, diffZ = maxZ - minZ;
 	int axis = (diffX >= diffY && diffX >= diffZ) ? 0 : (diffY >= diffZ) ? 1 : 2;
@@ -98,6 +73,24 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 
 	// Find the split index
 	int split_index = (left_index + right_index) / 2;
+	int mid = (node_bbox.min.getAxisValue(axis) + node_bbox.max.getAxisValue(axis)) / 2;
+
+	// Find the split index
+	if (!(objects[left_index]->GetBoundingBox().min.getAxisValue(axis) > mid || objects[right_index-1]->GetBoundingBox().max.getAxisValue(axis) <= mid))
+	{
+		float min_distance = FLT_MAX;
+		for (int i = left_index; i < right_index - 1; i++) 
+		{
+			float distance = fabs(objects[i]->getCentroid().getAxisValue(axis) - mid);
+			if (distance < min_distance) {
+				min_distance = distance;
+				split_index = i + 1;
+			} else if (distance > min_distance) {
+				break;
+			}
+		}
+
+	}
 
 	Vector min = Vector(FLT_MAX, FLT_MAX, FLT_MAX);
 	Vector max = Vector(-FLT_MAX, -FLT_MAX, -FLT_MAX);
@@ -144,7 +137,6 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 {
 	float tClosest = FLT_MAX, tLeft, tRight, tmp; // contains the closest primitive intersection
-	bool hitLeft = false, hitRight = false, hit = false;
 	Object *closestHit = NULL;
 
 	BVHNode *currentNode = nodes[0];

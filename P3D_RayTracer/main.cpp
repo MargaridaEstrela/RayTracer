@@ -33,8 +33,9 @@ bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
 unsigned int spp;
 bool antialiasing = false;
-bool soft_shadows = true;
+bool soft_shadows = false;
 bool fuzzy_reflections = false;
+bool dof = true;
 
 #define CAPTION "Whitted Ray-Tracer"
 #define VERTEX_COORD_ATTRIB 0
@@ -675,6 +676,18 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	return color;
 }
 
+Color dofRayTracing(const Vector& pixel) {
+	Color color = Color(0.0f, 0.0f, 0.0f);
+	
+	for (int i = 0; i < spp; i++) {
+		Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture();
+
+		Ray ray = scene->GetCamera()->PrimaryRay(lens_sample, pixel);
+		color += rayTracing(ray, 1, 1.0).clamp();
+	}
+	return color * (float)(1.0f / spp);
+}
+
 // Render function by primary ray casting from the eye towards the scene's objects
 
 void renderScene()
@@ -701,22 +714,30 @@ void renderScene()
 				for (int i = 0; i < n; i++) {
 					for (int j = 0; j < n; j++) {
 						float e = rand_float();
+						float f = rand_float();
 						pixel.x = x + (i + e) / n;
-						pixel.y = y + (j + e) / n;
+						pixel.y = y + (j + f) / n;
 
-						Ray ray = scene->GetCamera()->PrimaryRay(pixel);
-						color += rayTracing(ray, 1, 1.0).clamp();
+						if (dof && scene->GetCamera()->GetAperture() > 0.0f) {
+							color += dofRayTracing(pixel).clamp();
+						} else {
+							Ray ray = scene->GetCamera()->PrimaryRay(pixel);
+							color += rayTracing(ray, 1, 1.0).clamp();
+						}
 					}
 				}
-				color *= (float) 1/spp;
+				color *= (float) (1/spp);
 			} else {
 				pixel.x = x + 0.5f;
 				pixel.y = y + 0.5f;
 
-				Ray ray = scene->GetCamera()->PrimaryRay(pixel);   //function from camera.h
-				color = rayTracing(ray, 1, 1.0).clamp();
+				if (dof && scene->GetCamera()->GetAperture() > 0.0f) {
+					color = dofRayTracing(pixel).clamp();
+				} else {
+					Ray ray = scene->GetCamera()->PrimaryRay(pixel);
+					color = rayTracing(ray, 1, 1.0).clamp();
+				}
 			}
-
 			img_Data[counter++] = u8fromfloat((float)color.r());
 			img_Data[counter++] = u8fromfloat((float)color.g());
 			img_Data[counter++] = u8fromfloat((float)color.b());

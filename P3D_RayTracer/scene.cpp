@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -26,7 +27,6 @@ Triangle::Triangle(Vector &P0, Vector &P1, Vector &P2)
 	Min = Vector(xMin, yMin, zMin);
 	Max = Vector(xMax, yMax, zMax);
 
-	// enlarge the bounding box a bit just in case...
 	Min -= EPSILON;
 	Max += EPSILON;
 }
@@ -140,7 +140,7 @@ bool Sphere::intercepts(Ray &r, float &t)
 {
 	Vector temp = center - r.origin;
 	float b = temp * r.direction; 
-	float c = temp * temp - radius * radius;
+	float c = temp * temp - SqRadius;
 	float b2_c = pow(b, 2) - c;
 
 	if (b < 0.0f || b2_c < 0) {
@@ -164,16 +164,13 @@ Vector Sphere::getNormal(Vector point)
 
 AABB Sphere::GetBoundingBox()
 {
-	Vector a_min = center;
-	Vector a_max = center;
+	Vector bMin = center;
+	Vector bMax = center;
 
-	a_min -= radius;
-	a_max += radius;
+	bMin -= radius - EPSILON;
+	bMax += radius + EPSILON;
 
-	a_min -= EPSILON;
-	a_max += EPSILON;
-
-	return (AABB(a_min, a_max));
+	return AABB(bMin, bMax);
 }
 
 aaBox::aaBox(Vector &minPoint, Vector &maxPoint) // Axis aligned Box: another geometric object
@@ -184,7 +181,7 @@ aaBox::aaBox(Vector &minPoint, Vector &maxPoint) // Axis aligned Box: another ge
 
 AABB aaBox::GetBoundingBox()
 {
-	return (AABB(min, max));
+	return AABB(min, max);
 }
 
 bool aaBox::intercepts(Ray &ray, float &t)
@@ -274,10 +271,10 @@ bool aaBox::intercepts(Ray &ray, float &t)
 			t = tL; // ray hits inside surface
 			Normal = face_out;
 		}
-		return (true);
+		return true;
 	}
 
-	return (false);
+	return false;
 }
 
 Vector aaBox::getNormal(Vector point)

@@ -25,7 +25,7 @@
 #include "macros.h"
 
 //Enable OpenGL drawing.  
-bool drawModeEnabled = true;
+bool drawModeEnabled = false;
 
 bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 
@@ -466,30 +466,11 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	float bck_att = 1.0f;
 	if (depth > 2) bck_att = 1 / (0.7 * (depth - 1));
 
-	bool skybox_flg = scene->GetSkyBoxFlg();
-	accelerator Accel_Struct = scene->GetAccelStruct();
-
+	bool skyBox_flg = scene->GetSkyBoxFlg();
 	int num_objects = scene->getNumObjects();
 
-	if(Accel_Struct == GRID_ACC) { // Regular Grid
-		if (!grid_ptr->Traverse(ray, &hitObject, hitPoint)) {
-			if (skybox_flg)
-				return scene->GetSkyboxColor(ray);
-			else
-				return (scene->GetBackgroundColor() * bck_att);
-		}
-	}
-
-	else if (Accel_Struct == BVH_ACC) { // BVH
-		if (!bvh_ptr->Traverse(ray, &hitObject, hitPoint)) {
-			if (skybox_flg)
-				return scene->GetSkyboxColor(ray);
-			else
-				return (scene->GetBackgroundColor() * bck_att);
-		}
-	}
-
-	else {
+	// No Acceleration Structure
+	if (Accel_Struct == NONE) {
 		for (int i = 0; i < num_objects; i++) {
 			if (scene->getObject(i)->intercepts(ray, t)) {
 				if (t < tClosest) {
@@ -498,15 +479,37 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 				}
 			}
 		}
+
+		if (hitObject == nullptr) {
+			if (skyBox_flg)
+				return scene->GetSkyboxColor(ray);
+			else {
+				return scene->GetBackgroundColor() * bck_att;
+			}
+		} else {
+			hitPoint = ray.origin + (ray.direction * tClosest);
+		}
 	}
 
-	skybox_flg = false;
+	// Uniform Grid Acceleration
+	else if(Accel_Struct == GRID_ACC) {
+		if (!grid_ptr->Traverse(ray, &hitObject, hitPoint)) {
+			if (skyBox_flg) {
+				return scene->GetSkyboxColor(ray);
+			} else {
+				return (scene->GetBackgroundColor() * bck_att);
+			}
+		}
+	}
 
-	if (hitObject == nullptr) {
-		if (skybox_flg)
-			return scene->GetSkyboxColor(ray);
-		else {
-			return scene->GetBackgroundColor() * bck_att;
+	// BHV Acceleration
+	else if (Accel_Struct == BVH_ACC) {
+		if (!bvh_ptr->Traverse(ray, &hitObject, hitPoint)) {
+			if (skyBox_flg) {
+				return scene->GetSkyboxColor(ray);
+			} else {
+				return (scene->GetBackgroundColor() * bck_att);
+			}
 		}
 	}
 
@@ -514,7 +517,6 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 	Color diffColor = material->GetDiffColor();
 	Color specColor = material->GetSpecColor();
 
-	hitPoint = ray.origin + (ray.direction * tClosest);
 	Vector normal = hitObject->getNormal(hitPoint);
 	Vector bias = normal * EPSILON;
 	Vector v = ray.direction * (-1.0f);
@@ -525,35 +527,40 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		int num_lights = scene->getNumLights();
 
 		for (int j = 0; j < num_lights; j++) {
-			bool inShadow = false;
 			int lightSamples = 1;
-
+			if (soft_shadows && !antialiasing) lightSamples = 4;
 			Vector a, b;
 			if (soft_shadows) {
-				lightSamples = 4;
-				a = Vector(.5, 0, 0);
-				b = Vector(0, .5, 0);
+				a = Vector(0.5f, 0.0f, 0.0f);
+				b = Vector(0.0f, 0.5f, 0.0f);
 			}
 
 			for (int s = 0; s < lightSamples; s++) {
 
 				Light* light = scene->getLight(j);
 				Vector L;
-
-				if (soft_shadows) {
-					int areaLightSide = (int)sqrt(lightSamples);
+				if (soft_shadows && !antialiasing) {
+					int areaLightSide = (int) sqrt(lightSamples);
 					int q = s / areaLightSide;
 					int p = s - (q * areaLightSide);
 					Vector randomVector = light->position + a * p * (1.0f / (areaLightSide - 1.0f)) + b * q * (1.0f / (areaLightSide - 1.0f));
 					L = randomVector - hitPoint;
+				} else if (soft_shadows && antialiasing) {
+					int p = floor<int>(rand() * sqrt(spp) / (RAND_MAX));
+					int q = floor<int>(rand() * sqrt(spp) / (RAND_MAX));
+					double random1 = (double)rand() / (RAND_MAX);
+					double random2 = (double)rand() / (RAND_MAX);
+					Vector randomVector = light->position + a * ((p + random1) / sqrt(spp)) + b * ((q + random2) / sqrt(spp));
+					L = randomVector - hitPoint;				
 				} else {
 					L = light->position - hitPoint;
 				}
-
 				float distance = L.length();
 				L.normalize();
 
+				Color lightColor = light->color;
 				Color lightColorSum = Color(0.0f, 0.0f, 0.0f);
+				bool inShadow = false;
 				float NdotL = normal * L;
 
 				if (NdotL > 0.0f) {
@@ -613,6 +620,7 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 	float m_refl = material->GetReflection();
 	float m_t = material->GetTransmittance();
+	float kr;
 
 	// Refraction - dielectric objects
 	if (m_t > 0.0f) {
@@ -629,23 +637,24 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 
 		if (total_reflection <= 1.0f) {
 			vt.normalize();
-			float cosT = sqrt(1.0f - total_reflection);
-			Vector tDir = (vt * ior_ratio) - (normal * cosT);
+			float cosT = sqrt(1.0f - pow(sinT, 2.0f));
+			Vector tDir = (vt * sinT) - (normal * cosT);
 			Vector tOrig = outside ? hitPoint - bias : hitPoint + bias;
 			Ray tRay = Ray(tOrig, tDir.normalize());
 
 			float R0 = pow((ior_1 - ior_2) / (ior_1 + ior_2), 2.0f);
 			float cosI = sqrt(1.0f + pow(sinI, 2.0f));
 
-			float cos = (ior_ratio > 0) ? cosT : cosI;
-			m_refl = R0 + (1.0f - R0) * pow((1.0f - cos), 5.0f);
-			color += rayTracing(tRay, depth + 1, ior_2) * (1 - m_refl) * diffColor;
-		} else 
-			m_refl = 1.0f;	// Total reflection or non-dielectric material
+			float cos = (ior_1 > ior_2) ? cosT : cosI;
+			kr = R0 + (1.0f - R0) * pow((1.0f - cos), 5.0f);
+			color += rayTracing(tRay, depth + 1, ior_2) * (1 - kr);
+		} else {
+			kr = 1.0f;
+		}
 	}
 
 	// Reflection
-	if (m_refl > 0.0f) 
+	if (m_refl > 0.0f ) 
 	{
 		Vector rDir = (normal * ((v * normal) * 2.0f) - v);
 
@@ -657,24 +666,26 @@ Color rayTracing(Ray ray, int depth, float ior_1)  //index of refraction of medi
 		if (normal * rDir > 0.0f) {
 			Vector rOrig = outside ? hitPoint + bias : hitPoint - bias;
 			Ray rRay = Ray(rOrig, rDir.normalize());
-			color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
+			if (m_t > 0.0f) {
+				color += rayTracing(rRay, depth + 1, ior_1) * kr;	
+			} else {
+				color += rayTracing(rRay, depth + 1, ior_1) * m_refl * specColor;
+			}
 		}
 	}
 	return color;
 }
 
 Color dofRayTracing(const Vector& pixel) {
-	Color color = Color(.0f, .0f, .0f);
-
-	for (int i = 0; i < 4; i++) {
+	Color color = Color(0.0f, 0.0f, 0.0f);
+	
+	for (int i = 0; i < spp; i++) {
 		Vector lens_sample = rnd_unit_disk() * scene->GetCamera()->GetAperture();
-		
-		Ray ray = scene->GetCamera()->PrimaryRay(lens_sample, pixel);
-		color += rayTracing(ray, 1, 1.0).clamp() * (float)(1.0 / 4);
-		
-	}
 
-	return color;
+		Ray ray = scene->GetCamera()->PrimaryRay(lens_sample, pixel);
+		color += rayTracing(ray, 1, 1.0).clamp();
+	}
+	return color * (float)(1.0f / spp);
 }
 
 // Render function by primary ray casting from the eye towards the scene's objects
@@ -703,10 +714,11 @@ void renderScene()
 				for (int i = 0; i < n; i++) {
 					for (int j = 0; j < n; j++) {
 						float e = rand_float();
+						float f = rand_float();
 						pixel.x = x + (i + e) / n;
-						pixel.y = y + (j + e) / n;
+						pixel.y = y + (j + f) / n;
 
-						if (dof && scene->GetCamera()->GetAperture() > 0) {
+						if (dof && scene->GetCamera()->GetAperture() > 0.0f) {
 							color += dofRayTracing(pixel).clamp();
 						} else {
 							Ray ray = scene->GetCamera()->PrimaryRay(pixel);
@@ -714,7 +726,7 @@ void renderScene()
 						}
 					}
 				}
-				color *= (float) (1/spp);
+				color *= (1.0f / spp);
 			} else {
 				pixel.x = x + 0.5f;
 				pixel.y = y + 0.5f;

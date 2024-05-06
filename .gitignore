@@ -1,3 +1,9 @@
 # Ignore Visual Studio Code files
-.vscode/
+*.vscode/
+*.vs/
 
+x64/Debug/
+
+P3D_RayTracer/x64/Debug/
+
+*.DS_Store

@@ -32,7 +32,7 @@ bool P3F_scene = true; //choose between P3F scene or a built-in random scene
 #define MAX_DEPTH 4  //number of bounces
 
 unsigned int spp;
-bool antialiasing = false;
+bool antialiasing = true;
 bool soft_shadows = false;
 bool fuzzy_reflections = false;
 bool dof = true;
@@ -726,7 +726,7 @@ void renderScene()
 						}
 					}
 				}
-				color *= (float) (1/spp);
+				color *= (1.0f / spp);
 			} else {
 				pixel.x = x + 0.5f;
 				pixel.y = y + 0.5f;

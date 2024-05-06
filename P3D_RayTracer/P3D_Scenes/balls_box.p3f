@@ -1,5 +1,5 @@
-accel 1
-spp 0
+accel 2
+spp 16
 #background color azulada
 bclr 0.678 0.761 0.953
 env skybox

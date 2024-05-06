@@ -64,7 +64,6 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 	int diffY = node_bbox.max.y - node_bbox.min.y;
 	int diffZ = node_bbox.max.z - node_bbox.min.z;
 
-	// float diffX = maxX - minX, diffY = maxY - minY, diffZ = maxZ - minZ;
 	int axis = (diffX >= diffY && diffX >= diffZ) ? 0 : (diffY >= diffZ) ? 1 : 2;
 
 	Comparator cmp;
@@ -72,24 +71,20 @@ void BVH::build_recursive(int left_index, int right_index, BVHNode *node)
 	sort(objects.begin() + left_index, objects.begin() + right_index, cmp);
 
 	// Find the split index
-	int split_index = (left_index + right_index) / 2;
+	int split_index;
 	int mid = (node_bbox.min.getAxisValue(axis) + node_bbox.max.getAxisValue(axis)) / 2;
 
-	// Find the split index
-	if (!(objects[left_index]->GetBoundingBox().min.getAxisValue(axis) > mid || objects[right_index-1]->GetBoundingBox().max.getAxisValue(axis) <= mid))
+	if (objects[left_index]->getCentroid().getAxisValue(axis) > mid || objects[right_index-1]->getCentroid().getAxisValue(axis) <= mid)
 	{
-		float min_distance = FLT_MAX;
-		for (int i = left_index; i < right_index - 1; i++) 
+		split_index = (left_index + right_index) / 2;
+	} else {
+		for (int i = left_index; i < right_index; i++) 
 		{
-			float distance = fabs(objects[i]->getCentroid().getAxisValue(axis) - mid);
-			if (distance < min_distance) {
-				min_distance = distance;
-				split_index = i + 1;
-			} else if (distance > min_distance) {
+			if (objects[i]->getCentroid().getAxisValue(axis) > mid) {
+				split_index = i;
 				break;
 			}
 		}
-
 	}
 
 	Vector min = Vector(FLT_MAX, FLT_MAX, FLT_MAX);
@@ -154,6 +149,9 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 			BVHNode *leftNode = nodes[currentNode->getIndex()];
 			BVHNode *rightNode = nodes[currentNode->getIndex() + 1];
 
+			if (leftNode->getAABB().isInside(ray.GetOrigin())) tLeft = 0;
+			if (rightNode->getAABB().isInside(ray.GetOrigin())) tRight = 0;
+
 			bool hitLeft = leftNode->getAABB().intercepts(ray, tLeft);
 			bool hitRight = rightNode->getAABB().intercepts(ray, tRight);
 
@@ -189,6 +187,7 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 			}
 		}
 
+		bool hit = false;
 		while (!hit_stack.empty())
 		{
 			StackItem item = hit_stack.top();
@@ -197,21 +196,20 @@ bool BVH::Traverse(Ray &ray, Object **hit_obj, Vector &hit_point)
 			if (item.t < tClosest)
 			{
 				currentNode = item.ptr;
+				hit = true;
 				break;
 			}
 		}
 
-		if (hit_stack.empty())
-		{
-			if (closestHit != nullptr)
-			{
+		if (hit) {continue;}
+
+		if (hit_stack.empty()) {
+			if (closestHit == nullptr) {
+				return false;
+			} else {
 				*hit_obj = closestHit;
 				hit_point = ray.origin + ray.direction * tClosest;
 				return true;
-			}
-			else
-			{
-				return false;
 			}
 		}
 	}
